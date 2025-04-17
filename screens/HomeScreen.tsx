@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -13,10 +13,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity
-          onPress={() => {/* TODO: Navigate to profile */}}
-          style={{ marginRight: 8, marginBottom: 16 }}
+          onPress={() => navigation.navigate('Profile')}
+          style={{ marginRight: 16 }}
         >
-          <Icon name="person-circle-outline" size={24} color="#fff" />
+          <Ionicons name="person-circle-outline" size={24} color="#fff" />
         </TouchableOpacity>
       ),
     });

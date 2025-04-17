@@ -5,11 +5,13 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 // Import your screens here
 import DialogueScreen from './screens/DialogueScreen';
 import HomeScreen from './screens/HomeScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
   Home: undefined;
   Dialogue: undefined;
+  Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -18,12 +20,14 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
+        initialRouteName="Home"
         screenOptions={{
           headerStyle: {
             backgroundColor: '#1c1c1c',
           },
           headerTintColor: '#fff',
           headerTitleStyle: {
+            fontSize: 24,
             fontWeight: 'bold',
           },
         }}
@@ -39,10 +43,14 @@ export default function App() {
           name="Dialogue" 
           component={DialogueScreen}
           options={{
-            headerStyle: {
-              backgroundColor: '#1c1c1c',
-            },
-            headerTintColor: '#fff',
+            title: 'Chat',
+          }}
+        />
+        <Stack.Screen 
+          name="Profile" 
+          component={ProfileScreen}
+          options={{
+            title: 'Profile',
           }}
         />
       </Stack.Navigator>
