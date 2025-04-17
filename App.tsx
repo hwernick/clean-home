@@ -6,12 +6,17 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import DialogueScreen from './screens/DialogueScreen';
 import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import NotesScreen from './screens/NotesScreen';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
   Home: undefined;
   Dialogue: undefined;
   Profile: undefined;
+  Notes: {
+    conversationId: string;
+    messages: Array<{ role: string; content: string }>;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -51,6 +56,13 @@ export default function App() {
           component={ProfileScreen}
           options={{
             title: 'Profile',
+          }}
+        />
+        <Stack.Screen 
+          name="Notes" 
+          component={NotesScreen}
+          options={{
+            title: 'Notes',
           }}
         />
       </Stack.Navigator>

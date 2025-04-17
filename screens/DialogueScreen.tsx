@@ -220,7 +220,7 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.mainContainer}>
@@ -258,23 +258,47 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
             </ScrollView>
 
             <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                value={input}
-                onChangeText={setInput}
-                placeholder="What's on your mind..."
-                placeholderTextColor="#888"
-                multiline
-                onSubmitEditing={sendMessage}
-                returnKeyType="send"
-              />
-              <TouchableOpacity 
-                style={styles.sendButton} 
-                onPress={sendMessage}
-                disabled={loading || !input.trim()}
-              >
-                <Text style={styles.sendButtonText}>Send</Text>
-              </TouchableOpacity>
+              <View style={styles.inputRow}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    value={input}
+                    onChangeText={setInput}
+                    placeholder="What's on your mind..."
+                    placeholderTextColor="#888"
+                    multiline
+                    onSubmitEditing={sendMessage}
+                    returnKeyType="send"
+                  />
+                  <TouchableOpacity 
+                    style={[styles.sendButton, (!input.trim() || loading) && styles.sendButtonDisabled]} 
+                    onPress={sendMessage}
+                    disabled={loading || !input.trim()}
+                  >
+                    <Icon name="arrow-up" size={20} color={input.trim() && !loading ? "#fff" : "#888"} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity 
+                  style={styles.penButton}
+                  onPress={() => {
+                    if (currentConversationId) {
+                      navigation.navigate('Notes', {
+                        conversationId: currentConversationId,
+                        messages: messages,
+                      });
+                    } else {
+                      // If no conversation exists yet, create one first
+                      createNewConversation();
+                      navigation.navigate('Notes', {
+                        conversationId: currentConversationId || Date.now().toString(),
+                        messages: messages,
+                      });
+                    }
+                  }}
+                >
+                  <Icon name="pencil" size={20} color="#888" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -385,33 +409,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#1c1c1c',
     borderTopWidth: 1,
     borderColor: '#333',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+  },
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  input: {
+  inputContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#333',
-    borderRadius: 20,
+    paddingRight: 8,
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#2a2a2a',
     color: '#fff',
-    marginRight: 8,
+  },
+  penButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   sendButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#007AFF',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sendButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  sendButtonDisabled: {
+    backgroundColor: '#333',
   },
   modalContainer: {
     flex: 1,
