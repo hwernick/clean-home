@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -45,6 +46,28 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: 'Socratic Dialogue',
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, marginBottom: 16 }}
+        >
+          <Icon name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+      ),
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => setShowHistory(true)}
+          style={{ marginRight: 8, marginBottom: 16 }}
+        >
+          <Icon name="menu" size={24} color="#fff" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   useEffect(() => {
     loadConversations();
@@ -167,6 +190,31 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
     return new Date(timestamp).toLocaleDateString();
   };
 
+  const deleteConversation = async (id: string) => {
+    Alert.alert(
+      "Delete Conversation",
+      "Are you sure you want to delete this conversation?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const updatedConversations = conversations.filter(conv => conv.id !== id);
+            await saveConversations(updatedConversations);
+            if (currentConversationId === id) {
+              setMessages([]);
+              setCurrentConversationId(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -174,15 +222,6 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.historyButton}
-            onPress={() => setShowHistory(true)}
-          >
-            <Icon name="menu" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.mainContainer}>
             <ScrollView
@@ -401,6 +440,14 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
   },
+  conversationItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  conversationContent: {
+    flex: 1,
+  },
   conversationItem: {
     padding: 16,
     borderBottomWidth: 1,
@@ -429,6 +476,10 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
+    marginLeft: 8,
+  },
+  deleteButton: {
+    padding: 8,
     marginLeft: 8,
   },
 });

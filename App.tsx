@@ -39,7 +39,10 @@ export default function App() {
           name="Dialogue" 
           component={DialogueScreen}
           options={{
-            title: 'Socratic Dialogue',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
           }}
         />
       </Stack.Navigator>
