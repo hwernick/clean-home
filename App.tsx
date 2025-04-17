@@ -39,7 +39,7 @@ export default function App() {
           name="Dialogue" 
           component={DialogueScreen}
           options={{
-            title: 'Chat with Claude',
+            title: 'Socratic Dialogue',
           }}
         />
       </Stack.Navigator>
