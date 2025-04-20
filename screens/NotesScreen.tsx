@@ -57,7 +57,6 @@ export default function NotesScreen({ navigation, route }: NotesScreenProps) {
   // Load and generate initial notes on screen mount
   useEffect(() => {
     loadNotes();
-    generateInitialNotes();
   }, []);
 
   // Update temporary title and notes when the main title or notes change
@@ -72,6 +71,14 @@ export default function NotesScreen({ navigation, route }: NotesScreenProps) {
       const storedNotes = await AsyncStorage.getItem(`notes_${conversationId}`);
       if (storedNotes) {
         setNotes(storedNotes);
+        // Also load the title if it exists
+        const storedTitle = await AsyncStorage.getItem(`notes_title_${conversationId}`);
+        if (storedTitle) {
+          setTitle(storedTitle);
+        }
+      } else {
+        // Only generate notes if they don't already exist
+        generateInitialNotes();
       }
     } catch (error) {
       console.error('Error loading notes:', error);
