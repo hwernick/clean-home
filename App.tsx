@@ -84,6 +84,13 @@ export default function App() {
           component={NotesScreen}
           options={{
             title: 'Notes',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
           }}
         />
       </Stack.Navigator>
