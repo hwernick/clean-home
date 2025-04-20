@@ -25,7 +25,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Socratic Dialogue</Text>
+        <Text style={styles.title}>Welcome to ClassicaI</Text>
         <Text style={styles.subtitle}>Your AI philosophy tutor</Text>
         
         <TouchableOpacity

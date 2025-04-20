@@ -52,7 +52,13 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
       title: 'Socratic Dialogue',
       headerLeft: () => (
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            // Delete conversation if it's empty (no messages)
+            if (currentConversationId && messages.length === 0) {
+              deleteConversation(currentConversationId);
+            }
+            navigation.goBack();
+          }}
           style={{ marginLeft: 8, marginBottom: 16 }}
         >
           <Icon name="arrow-back" size={24} color="#fff" />
@@ -67,11 +73,20 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
         </TouchableOpacity>
       ),
     });
-  }, [navigation]);
+  }, [navigation, currentConversationId, messages]);
 
   useEffect(() => {
     loadConversations();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      // Delete conversation if it's empty when leaving the screen
+      if (currentConversationId && messages.length === 0) {
+        deleteConversation(currentConversationId);
+      }
+    };
+  }, [currentConversationId, messages]);
 
   const loadConversations = async () => {
     try {
@@ -120,18 +135,58 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
   const updateConversationTitle = async (messages: Message[]) => {
     if (!currentConversationId || messages.length === 0) return;
     
-    const firstMessage = messages[0].content;
-    const title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? '...' : '');
-    
-    setConversations(prev => {
-      const updated = prev.map(conv => 
-        conv.id === currentConversationId 
-          ? { ...conv, title, messages }
-          : conv
-      );
-      saveConversations(updated);
-      return updated;
-    });
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful assistant that generates concise, descriptive titles for conversations. Create a title that is 2-4 words maximum, capturing the main topic or theme of the conversation. The title should be clear and meaningful without being too long.',
+            },
+            {
+              role: 'user',
+              content: `Generate a concise title for this conversation:\n\n${messages.map(msg => `${msg.role}: ${msg.content}`).join('\n\n')}`,
+            },
+          ],
+          max_tokens: 10,
+          temperature: 0.7,
+        }),
+      });
+
+      const data = await res.json();
+      const title = data.choices?.[0]?.message?.content?.trim() || 'New Conversation';
+      
+      setConversations(prev => {
+        const updated = prev.map(conv => 
+          conv.id === currentConversationId 
+            ? { ...conv, title, messages }
+            : conv
+        );
+        saveConversations(updated);
+        return updated;
+      });
+    } catch (error) {
+      console.error('Error generating title:', error);
+      // Fallback to a simple title if the API call fails
+      const firstMessage = messages[0].content;
+      const title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? '...' : '');
+      
+      setConversations(prev => {
+        const updated = prev.map(conv => 
+          conv.id === currentConversationId 
+            ? { ...conv, title, messages }
+            : conv
+        );
+        saveConversations(updated);
+        return updated;
+      });
+    }
   };
 
   const sendMessage = async () => {
@@ -201,28 +256,12 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
   };
 
   const deleteConversation = async (id: string) => {
-    Alert.alert(
-      "Delete Conversation",
-      "Are you sure you want to delete this conversation?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const updatedConversations = conversations.filter(conv => conv.id !== id);
-            await saveConversations(updatedConversations);
-            if (currentConversationId === id) {
-              setMessages([]);
-              setCurrentConversationId(null);
-            }
-          }
-        }
-      ]
-    );
+    const updatedConversations = conversations.filter(conv => conv.id !== id);
+    await saveConversations(updatedConversations);
+    if (currentConversationId === id) {
+      setMessages([]);
+      setCurrentConversationId(null);
+    }
   };
 
   return (
@@ -306,7 +345,7 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
                     }
                   }}
                 >
-                  <Icon name="pencil" size={20} color="#888" />
+                  <Icon name="book-outline" size={20} color="#888" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -351,11 +390,28 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
                     item.id === currentConversationId && styles.activeConversation,
                   ]}
                   onPress={() => loadConversation(item)}
+                  onLongPress={() => {
+                    Alert.alert(
+                      "Delete Conversation",
+                      "Are you sure you want to delete this conversation?",
+                      [
+                        {
+                          text: "Cancel",
+                          style: "cancel"
+                        },
+                        {
+                          text: "Delete",
+                          style: "destructive",
+                          onPress: () => deleteConversation(item.id)
+                        }
+                      ]
+                    );
+                  }}
                 >
                   <Text style={styles.conversationTitle}>{item.title}</Text>
-                  <Text style={styles.conversationDate}>{formatDate(item.timestamp)}</Text>
                 </TouchableOpacity>
               )}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
             />
           </View>
         </View>
@@ -480,8 +536,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomWidth: 0,
   },
   modalTitle: {
     color: '#fff',
@@ -501,8 +556,7 @@ const styles = StyleSheet.create({
   },
   conversationItem: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomWidth: 0,
   },
   activeConversation: {
     backgroundColor: '#2a2a2a',
@@ -511,17 +565,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     marginBottom: 4,
-  },
-  conversationDate: {
-    color: '#888',
-    fontSize: 12,
+
   },
   newConversationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomWidth: 0,
   },
   newConversationText: {
     color: '#007AFF',

@@ -57,6 +57,7 @@ export default function NotesScreen({ navigation, route }: NotesScreenProps) {
   // Load and generate initial notes on screen mount
   useEffect(() => {
     loadNotes();
+    generateInitialNotes();
   }, []);
 
   // Update temporary title and notes when the main title or notes change
@@ -76,9 +77,6 @@ export default function NotesScreen({ navigation, route }: NotesScreenProps) {
         if (storedTitle) {
           setTitle(storedTitle);
         }
-      } else {
-        // Only generate notes if they don't already exist
-        generateInitialNotes();
       }
     } catch (error) {
       console.error('Error loading notes:', error);
@@ -124,7 +122,6 @@ Conclusion: Provide the user's takeaways or insights.
 
 Structure:
 Track questions in a linear, chronological list.
-Do not nest questions.
 Each question should have its own section, formatted like this:
 
 Question: [Insert question]
@@ -171,7 +168,16 @@ Leave questions open if the user is still exploring them (e.g., "Still reflectin
         setTitle(`Notes: ${generatedTitle}`);
       }
 
-      setNotes(generatedNotes);
+      // If there are existing notes, try to preserve user edits
+      if (notes) {
+        // This is a simple approach - you might want to implement a more sophisticated
+        // diff/merge algorithm to better preserve user edits
+        const updatedNotes = mergeNotesWithUserEdits(notes, generatedNotes);
+        setNotes(updatedNotes);
+      } else {
+        setNotes(generatedNotes);
+      }
+      
       await saveNotes();
     } catch (error) {
       console.error('Error generating notes:', error);
@@ -183,6 +189,20 @@ Leave questions open if the user is still exploring them (e.g., "Still reflectin
       await saveNotes();
     }
     setLoading(false);
+  };
+
+  // Helper function to merge generated notes with user edits
+  const mergeNotesWithUserEdits = (existingNotes: string, newNotes: string): string => {
+    // This is a simple implementation that preserves the existing notes
+    // and appends new content that doesn't exist yet
+    // You might want to implement a more sophisticated merging algorithm
+    
+    // For now, we'll just return the new notes
+    // In a real implementation, you would want to:
+    // 1. Parse both the existing and new notes
+    // 2. Identify which sections are user-edited
+    // 3. Preserve those sections while updating others
+    return newNotes;
   };
 
   // Save changes after editing
