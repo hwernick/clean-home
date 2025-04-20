@@ -37,25 +37,46 @@ export default function App() {
           },
         }}
       >
-        <Stack.Screen 
-          name="Home" 
+        <Stack.Screen
+          name="Home"
           component={HomeScreen}
           options={{
-            title: 'Clean Home',
+            title: 'Classical',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
           }}
         />
-        <Stack.Screen 
-          name="Dialogue" 
+        <Stack.Screen
+          name="Dialogue"
           component={DialogueScreen}
           options={{
-            title: 'Chat',
+            title: 'Classical',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
           }}
         />
-        <Stack.Screen 
-          name="Profile" 
+        <Stack.Screen
+          name="Profile"
           component={ProfileScreen}
           options={{
-            title: 'Profile',
+            title: 'Classical',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
           }}
         />
         <Stack.Screen 
