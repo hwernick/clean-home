@@ -7,16 +7,18 @@ import DialogueScreen from './screens/DialogueScreen';
 import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import NotesScreen from './screens/NotesScreen';
+import PhilosopherCenter from './screens/PhilosopherCenter';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
   Home: undefined;
-  Dialogue: undefined;
+  Dialogue: { initialMessage?: string };
   Profile: undefined;
   Notes: {
     conversationId: string;
     messages: Array<{ role: string; content: string }>;
   };
+  PhilosopherCenter: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -55,7 +57,7 @@ export default function App() {
           name="Dialogue"
           component={DialogueScreen}
           options={{
-            title: 'Classical',
+            title: 'Socratic Dialogue',
             headerStyle: {
               backgroundColor: '#1c1c1c',
             },
@@ -69,7 +71,7 @@ export default function App() {
           name="Profile"
           component={ProfileScreen}
           options={{
-            title: 'Classical',
+            title: 'Profile',
             headerStyle: {
               backgroundColor: '#1c1c1c',
             },
@@ -79,11 +81,25 @@ export default function App() {
             },
           }}
         />
-        <Stack.Screen 
-          name="Notes" 
+        <Stack.Screen
+          name="Notes"
           component={NotesScreen}
           options={{
             title: 'Notes',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="PhilosopherCenter"
+          component={PhilosopherCenter}
+          options={{
+            title: 'Philosopher Center',
             headerStyle: {
               backgroundColor: '#1c1c1c',
             },

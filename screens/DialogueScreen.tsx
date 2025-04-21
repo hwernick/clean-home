@@ -39,9 +39,14 @@ type Conversation = {
 
 type DialogueScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Dialogue'>;
+  route: {
+    params?: {
+      initialMessage?: string;
+    };
+  };
 };
 
-export default function DialogueScreen({ navigation }: DialogueScreenProps) {
+export default function DialogueScreen({ navigation, route }: DialogueScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,6 +96,13 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
       }
     };
   }, [currentConversationId, messages]);
+
+  // Handle initial message if provided
+  useEffect(() => {
+    if (route.params?.initialMessage) {
+      setInput(route.params.initialMessage);
+    }
+  }, [route.params?.initialMessage]);
 
   const loadConversations = async () => {
     try {

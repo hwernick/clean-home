@@ -22,6 +22,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     });
   }, [navigation]);
 
+  const navigateToPhilosophers = () => {
+    // @ts-ignore - TypeScript is having issues with the navigation type
+    navigation.navigate('PhilosopherCenter');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -33,6 +38,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           onPress={() => navigation.navigate('Dialogue')}
         >
           <Text style={styles.buttonText}>Start Chat</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton]}
+          onPress={navigateToPhilosophers}
+        >
+          <Text style={styles.buttonText}>Explore Philosophers</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -73,10 +85,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+    marginBottom: 16,
+    width: '80%',
+  },
+  secondaryButton: {
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   buttonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });
