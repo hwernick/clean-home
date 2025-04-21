@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
@@ -18,104 +19,331 @@ type PhilosopherCenterProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PhilosopherCenter'>;
 };
 
-// Sample philosopher data
-const philosophers = [
-  {
-    id: '1',
-    name: 'Socrates',
-    period: 'Classical Greece (470-399 BCE)',
-    school: 'Socratic Method',
-    description: 'Known for the Socratic method of questioning and his famous statement "I know that I know nothing."',
-    keyWorks: ['Apology', 'Crito', 'Phaedo'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Socrates_Louvre.jpg/220px-Socrates_Louvre.jpg',
-  },
-  {
-    id: '2',
-    name: 'Plato',
-    period: 'Classical Greece (428-348 BCE)',
-    school: 'Platonism',
-    description: 'Student of Socrates and teacher of Aristotle. Founded the Academy in Athens.',
-    keyWorks: ['The Republic', 'Phaedo', 'Symposium'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Plato_Silanion_Musei_Capitolini_MC137.jpg/220px-Plato_Silanion_Musei_Capitolini_MC137.jpg',
-  },
-  {
-    id: '3',
-    name: 'Aristotle',
-    period: 'Classical Greece (384-322 BCE)',
-    school: 'Aristotelianism',
-    description: 'Student of Plato. Made significant contributions to logic, ethics, and natural sciences.',
-    keyWorks: ['Nicomachean Ethics', 'Politics', 'Metaphysics'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Aristotle_Altemps_Inv8575.jpg/220px-Aristotle_Altemps_Inv8575.jpg',
-  },
-  {
-    id: '4',
-    name: 'Immanuel Kant',
-    period: 'Enlightenment (1724-1804)',
-    school: 'Kantianism',
-    description: 'Developed the categorical imperative and transcendental idealism.',
-    keyWorks: ['Critique of Pure Reason', 'Groundwork of the Metaphysics of Morals'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Kant_gemaelde_3.jpg/220px-Kant_gemaelde_3.jpg',
-  },
-  {
-    id: '5',
-    name: 'Friedrich Nietzsche',
-    period: 'Modern (1844-1900)',
-    school: 'Existentialism',
-    description: 'Known for his critique of traditional morality and the concept of the "Übermensch."',
-    keyWorks: ['Thus Spoke Zarathustra', 'Beyond Good and Evil', 'The Genealogy of Morals'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Nietzsche187a.jpg/220px-Nietzsche187a.jpg',
-  },
-  {
-    id: '6',
-    name: 'René Descartes',
-    period: 'Early Modern (1596-1650)',
-    school: 'Cartesianism',
-    description: 'Known for "Cogito, ergo sum" and his dualistic view of mind and body.',
-    keyWorks: ['Meditations on First Philosophy', 'Discourse on the Method'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Frans_Hals_-_Portret_van_Ren%C3%A9_Descartes.jpg/220px-Frans_Hals_-_Portret_van_Ren%C3%A9_Descartes.jpg',
-  },
-  {
-    id: '7',
-    name: 'John Locke',
-    period: 'Early Modern (1632-1704)',
-    school: 'Empiricism',
-    description: 'Known for his theory of the mind as a "tabula rasa" and his influence on political liberalism.',
-    keyWorks: ['An Essay Concerning Human Understanding', 'Two Treatises of Government'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/John_Locke_by_Herman_Verelst.jpg/220px-John_Locke_by_Herman_Verelin.jpg',
-  },
-  {
-    id: '8',
-    name: 'David Hume',
-    period: 'Early Modern (1711-1776)',
-    school: 'Empiricism',
-    description: 'Known for his skepticism and the problem of induction.',
-    keyWorks: ['A Treatise of Human Nature', 'An Enquiry Concerning Human Understanding'],
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/David_Hume_by_Allan_Ramsay.jpg/220px-David_Hume_by_Allan_Ramsay.jpg',
-  },
-];
+type Philosopher = {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  url: string;
+};
+
+const MAJOR_PHILOSOPHERS = {
+  'socrates': { name: 'Socrates', id: 'Q913' },
+  'plato': { name: 'Plato', id: 'Q859' },
+  'aristotle': { name: 'Aristotle', id: 'Q868' },
+  'mill': { name: 'John Stuart Mill', id: 'Q12718' },
+  'locke': { name: 'John Locke', id: 'Q9359' },
+  'descartes': { name: 'René Descartes', id: 'Q9191' },
+  'nietzsche': { name: 'Friedrich Nietzsche', id: 'Q9358' }
+};
 
 export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPhilosopher, setSelectedPhilosopher] = useState<string | null>(null);
+  const [philosophers, setPhilosophers] = useState<Philosopher[]>([]);
+  const [selectedPhilosopher, setSelectedPhilosopher] = useState<Philosopher | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  // Filter philosophers based on search query
-  const filteredPhilosophers = philosophers.filter(philosopher =>
-    philosopher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    philosopher.school.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    philosopher.period.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Load initial philosophers when the screen opens
+  useEffect(() => {
+    const loadInitialPhilosophers = async () => {
+      setLoading(true);
+      try {
+        const philosopherIds = Object.values(MAJOR_PHILOSOPHERS).map(p => p.id);
+        const response = await fetch(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopherIds.join('|')}&format=json&origin=*&props=descriptions|labels|claims`
+        );
+        const data = await response.json();
+        
+        const results: Philosopher[] = Object.values(data.entities)
+          .map((entity: any) => {
+            const philosopher = Object.values(MAJOR_PHILOSOPHERS).find(p => p.id === entity.id);
+            if (!philosopher) return null;
 
-  const renderPhilosopherItem = ({ item }: { item: typeof philosophers[0] }) => (
+            let imageUrl = '';
+            if (entity.claims?.P18) {
+              const imageClaim = entity.claims.P18[0];
+              if (imageClaim.mainsnak?.datavalue?.value) {
+                const imageName = imageClaim.mainsnak.datavalue.value;
+                // Use a higher quality image size and ensure proper encoding
+                imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(imageName)}`;
+              }
+            }
+
+            return {
+              id: entity.id,
+              name: philosopher.name,
+              description: entity.descriptions?.en?.value || '',
+              image: imageUrl,
+              url: `https://www.wikidata.org/wiki/${entity.id}`
+            } as Philosopher;
+          })
+          .filter((philosopher): philosopher is Philosopher => philosopher !== null);
+
+        setPhilosophers(results);
+      } catch (error) {
+        console.error('Error loading initial philosophers:', error);
+        // Set a default image URL for each philosopher if the API call fails
+        const fallbackResults: Philosopher[] = Object.values(MAJOR_PHILOSOPHERS).map(philosopher => ({
+          id: philosopher.id,
+          name: philosopher.name,
+          description: 'Loading description...',
+          image: `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(philosopher.name.toLowerCase().replace(' ', '_') + '.jpg')}`,
+          url: `https://www.wikidata.org/wiki/${philosopher.id}`
+        }));
+        setPhilosophers(fallbackResults);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialPhilosophers();
+  }, []);
+
+  const searchWikipedia = async (query: string) => {
+    if (!query.trim()) {
+      // When search is cleared, show the initial philosophers again
+      const loadInitialPhilosophers = async () => {
+        setLoading(true);
+        try {
+          const philosopherIds = Object.values(MAJOR_PHILOSOPHERS).map(p => p.id);
+          const response = await fetch(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopherIds.join('|')}&format=json&origin=*&props=descriptions|labels|claims`
+          );
+          const data = await response.json();
+          
+          const results: Philosopher[] = Object.values(data.entities)
+            .map((entity: any) => {
+              const philosopher = Object.values(MAJOR_PHILOSOPHERS).find(p => p.id === entity.id);
+              if (!philosopher) return null;
+
+              let imageUrl = '';
+              if (entity.claims?.P18) {
+                const imageClaim = entity.claims.P18[0];
+                if (imageClaim.mainsnak?.datavalue?.value) {
+                  const imageName = imageClaim.mainsnak.datavalue.value;
+                  // Use a higher quality image size and ensure proper encoding
+                  imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(imageName)}`;
+                }
+              }
+
+              return {
+                id: entity.id,
+                name: philosopher.name,
+                description: entity.descriptions?.en?.value || '',
+                image: imageUrl,
+                url: `https://www.wikidata.org/wiki/${entity.id}`
+              } as Philosopher;
+            })
+            .filter((philosopher): philosopher is Philosopher => philosopher !== null);
+
+          setPhilosophers(results);
+        } catch (error) {
+          console.error('Error loading initial philosophers:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      loadInitialPhilosophers();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // First check if the query matches a major philosopher
+      const searchLower = query.toLowerCase();
+      const exactMatch = Object.entries(MAJOR_PHILOSOPHERS).find(([key, _]) => 
+        key.includes(searchLower) || searchLower.includes(key)
+      );
+
+      if (exactMatch) {
+        const [_, philosopher] = exactMatch;
+        console.log('Found exact match:', philosopher.name);
+        
+        // Get detailed information about the philosopher using their Wikidata ID
+        const entityResponse = await fetch(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopher.id}&format=json&origin=*&props=descriptions|labels|claims`
+        );
+        const entityData = await entityResponse.json();
+        const entity = entityData.entities[philosopher.id];
+        
+        // Get English description
+        const description = entity.descriptions?.en?.value || '';
+        
+        // Get image if available
+        let imageUrl = '';
+        if (entity.claims?.P18) { // P18 is the property ID for image
+          const imageClaim = entity.claims.P18[0];
+          if (imageClaim.mainsnak?.datavalue?.value) {
+            const imageName = imageClaim.mainsnak.datavalue.value;
+            imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=200&fname=${encodeURIComponent(imageName)}`;
+          }
+        }
+
+        setPhilosophers([{
+          id: philosopher.id,
+          name: philosopher.name,
+          description: description,
+          image: imageUrl,
+          url: `https://www.wikidata.org/wiki/${philosopher.id}`
+        }]);
+      } else {
+        console.log('No exact match found, using search');
+        // Search Wikidata for philosophers
+        const response = await fetch(
+          `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=en&format=json&origin=*&type=item`
+        );
+        const data = await response.json();
+        
+        if (!data.search) {
+          console.log('No search results found');
+          setPhilosophers([]);
+          return;
+        }
+
+        // Filter for philosophers (Q5 is human, P106 is occupation, Q4964182 is philosopher)
+        const philosopherIds = data.search
+          .filter((result: any) => result.concepturi?.includes('Q5'))
+          .map((result: any) => result.id);
+
+        if (philosopherIds.length > 0) {
+          // Get detailed information for each philosopher
+          const entityResponse = await fetch(
+            `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopherIds.join('|')}&format=json&origin=*&props=descriptions|labels|claims`
+          );
+          const entityData = await entityResponse.json();
+          
+          const results = Object.values(entityData.entities)
+            .filter((entity: any) => {
+              // Check if the entity has philosopher as occupation
+              const occupations = entity.claims?.P106 || [];
+              return occupations.some((claim: any) => 
+                claim.mainsnak?.datavalue?.value?.id === 'Q4964182'
+              );
+            })
+            .map((entity: any, index: number) => {
+              // Get image if available
+              let imageUrl = '';
+              if (entity.claims?.P18) {
+                const imageClaim = entity.claims.P18[0];
+                if (imageClaim.mainsnak?.datavalue?.value) {
+                  const imageName = imageClaim.mainsnak.datavalue.value;
+                  imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=200&fname=${encodeURIComponent(imageName)}`;
+                }
+              }
+
+              return {
+                id: entity.id,
+                name: entity.labels?.en?.value || 'Unknown',
+                description: entity.descriptions?.en?.value || '',
+                image: imageUrl,
+                url: `https://www.wikidata.org/wiki/${entity.id}`
+              };
+            });
+
+          console.log('Found search results:', results.length);
+          setPhilosophers(results);
+        } else {
+          setPhilosophers([]);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error searching Wikidata:', error);
+      setPhilosophers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPhilosopherImage = async (philosopher: Philosopher) => {
+    try {
+      // Try to get image from Wikipedia API first
+      const response = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+          philosopher.name
+        )}&prop=pageimages&format=json&origin=*&pithumbsize=500`
+      );
+      const data = await response.json();
+      const pages = data.query.pages;
+      const pageId = Object.keys(pages)[0];
+      const imageUrl = pages[pageId].thumbnail?.source;
+
+      if (imageUrl) {
+        setPhilosophers(prev =>
+          prev.map(p =>
+            p.id === philosopher.id ? { ...p, image: imageUrl } : p
+          )
+        );
+      } else {
+        // If no image found, try Wikidata API
+        const wikidataResponse = await fetch(
+          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopher.id}&format=json&origin=*&props=claims`
+        );
+        const wikidataData = await wikidataResponse.json();
+        const entity = wikidataData.entities[philosopher.id];
+        
+        if (entity?.claims?.P18) {
+          const imageClaim = entity.claims.P18[0];
+          if (imageClaim.mainsnak?.datavalue?.value) {
+            const imageName = imageClaim.mainsnak.datavalue.value;
+            const newImageUrl = `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(imageName)}`;
+            setPhilosophers(prev =>
+              prev.map(p =>
+                p.id === philosopher.id ? { ...p, image: newImageUrl } : p
+              )
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching philosopher image:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      searchWikipedia(searchQuery);
+    }, 500);
+
+    setSearchTimeout(timeout);
+
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchQuery]);
+
+  const renderPhilosopherItem = ({ item }: { item: Philosopher }) => (
     <TouchableOpacity
       style={styles.philosopherCard}
-      onPress={() => setSelectedPhilosopher(item.id)}
+      onPress={() => setSelectedPhilosopher(item)}
     >
       <View style={styles.cardContent}>
-        <Image source={{ uri: item.image }} style={styles.philosopherImage} />
+        {item.image ? (
+          <Image 
+            source={{ uri: item.image }} 
+            style={styles.philosopherImage}
+            onError={() => {
+              // If image fails to load, try to fetch it again
+              fetchPhilosopherImage(item);
+            }}
+          />
+        ) : (
+          <View style={[styles.philosopherImage, styles.placeholderImage]}>
+            <Icon name="person" size={40} color="#666" />
+          </View>
+        )}
         <View style={styles.philosopherInfo}>
           <Text style={styles.philosopherName}>{item.name}</Text>
-          <Text style={styles.philosopherPeriod}>{item.period}</Text>
-          <Text style={styles.philosopherSchool}>{item.school}</Text>
+          <Text style={styles.philosopherDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -123,9 +351,6 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
 
   const renderPhilosopherDetail = () => {
     if (!selectedPhilosopher) return null;
-    
-    const philosopher = philosophers.find(p => p.id === selectedPhilosopher);
-    if (!philosopher) return null;
 
     return (
       <View style={styles.detailContainer}>
@@ -134,33 +359,29 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
           onPress={() => setSelectedPhilosopher(null)}
         >
           <Icon name="arrow-back" size={24} color="#fff" />
-          <Text style={styles.backButtonText}>Back to List</Text>
+          <Text style={styles.backButtonText}>Back to Search</Text>
         </TouchableOpacity>
         
         <ScrollView style={styles.detailScroll}>
-          <Image source={{ uri: philosopher.image }} style={styles.detailImage} />
-          <Text style={styles.detailName}>{philosopher.name}</Text>
-          <Text style={styles.detailPeriod}>{philosopher.period}</Text>
-          <Text style={styles.detailSchool}>{philosopher.school}</Text>
+          {selectedPhilosopher.image ? (
+            <Image source={{ uri: selectedPhilosopher.image }} style={styles.detailImage} />
+          ) : (
+            <View style={[styles.detailImage, styles.placeholderImage]}>
+              <Icon name="person" size={60} color="#666" />
+            </View>
+          )}
+          <Text style={styles.detailName}>{selectedPhilosopher.name}</Text>
           
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.sectionText}>{philosopher.description}</Text>
-          </View>
-          
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Key Works</Text>
-            {philosopher.keyWorks.map((work, index) => (
-              <Text key={index} style={styles.workItem}>• {work}</Text>
-            ))}
+            <Text style={styles.sectionText}>{selectedPhilosopher.description}</Text>
           </View>
           
           <TouchableOpacity
             style={styles.exploreButton}
             onPress={() => {
-              // Navigate to Dialogue screen with a pre-filled message about the philosopher
               navigation.navigate('Dialogue', {
-                initialMessage: `Tell me more about ${philosopher.name} and their philosophical ideas.`
+                initialMessage: `Tell me more about ${selectedPhilosopher.name} and their philosophical ideas.`
               });
             }}
           >
@@ -179,7 +400,7 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
         <>
           <View style={styles.header}>
             <Text style={styles.title}>Philosopher Center</Text>
-            <Text style={styles.subtitle}>Explore the great minds of philosophy</Text>
+            <Text style={styles.subtitle}>Search and explore philosophers</Text>
           </View>
           
           <View style={styles.searchContainer}>
@@ -191,10 +412,13 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+            {loading && (
+              <ActivityIndicator size="small" color="#007AFF" style={styles.loadingIndicator} />
+            )}
           </View>
           
           <FlatList
-            data={filteredPhilosophers}
+            data={philosophers}
             renderItem={renderPhilosopherItem}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.listContainer}
@@ -245,6 +469,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
+  loadingIndicator: {
+    marginLeft: 8,
+  },
   listContainer: {
     padding: 16,
   },
@@ -266,6 +493,11 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     marginRight: 12,
   },
+  placeholderImage: {
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   philosopherInfo: {
     flex: 1,
     justifyContent: 'center',
@@ -276,14 +508,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 4,
   },
-  philosopherPeriod: {
+  philosopherDescription: {
     fontSize: 14,
     color: '#ccc',
-    marginBottom: 2,
-  },
-  philosopherSchool: {
-    fontSize: 14,
-    color: '#aaa',
+    lineHeight: 20,
   },
   detailContainer: {
     flex: 1,
@@ -314,16 +542,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
-  },
-  detailPeriod: {
-    fontSize: 16,
-    color: '#ccc',
-    marginBottom: 2,
-  },
-  detailSchool: {
-    fontSize: 16,
-    color: '#aaa',
     marginBottom: 16,
   },
   section: {
@@ -339,12 +557,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ddd',
     lineHeight: 24,
-  },
-  workItem: {
-    fontSize: 16,
-    color: '#ddd',
-    marginBottom: 4,
-    paddingLeft: 8,
   },
   exploreButton: {
     backgroundColor: '#007AFF',
