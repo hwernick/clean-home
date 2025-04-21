@@ -27,6 +27,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     navigation.navigate('PhilosopherCenter');
   };
 
+  const navigateToPersonalHub = () => {
+    // @ts-ignore - TypeScript is having issues with the navigation type
+    navigation.navigate('PersonalPhilosophyHub');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -45,6 +50,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           onPress={navigateToPhilosophers}
         >
           <Text style={styles.buttonText}>Explore Philosophers</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton]}
+          onPress={navigateToPersonalHub}
+        >
+          <Text style={styles.buttonText}>Personal Philosophy Hub</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

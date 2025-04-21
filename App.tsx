@@ -8,6 +8,7 @@ import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import NotesScreen from './screens/NotesScreen';
 import PhilosopherCenter from './screens/PhilosopherCenter';
+import PersonalPhilosophyHub from './screens/PersonalPhilosophyHub';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
@@ -19,6 +20,7 @@ export type RootStackParamList = {
     messages: Array<{ role: string; content: string }>;
   };
   PhilosopherCenter: undefined;
+  PersonalPhilosophyHub: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -100,6 +102,20 @@ export default function App() {
           component={PhilosopherCenter}
           options={{
             title: 'Philosopher Center',
+            headerStyle: {
+              backgroundColor: '#1c1c1c',
+            },
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
+          }}
+        />
+        <Stack.Screen
+          name="PersonalPhilosophyHub"
+          component={PersonalPhilosophyHub}
+          options={{
+            title: 'Personal Philosophy Hub',
             headerStyle: {
               backgroundColor: '#1c1c1c',
             },
