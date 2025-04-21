@@ -15,12 +15,15 @@ import {
   Modal,
   FlatList,
   Alert,
+  Pressable,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import { OPENAI_API_KEY } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -46,6 +49,7 @@ export default function DialogueScreen({ navigation }: DialogueScreenProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const [showContextMenu, setShowContextMenu] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({
@@ -264,6 +268,107 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
     }
   };
 
+  const pickDocument = async () => {
+    try {
+      console.log('Starting document picker...');
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'text/*'],
+        multiple: false,
+        copyToCacheDirectory: true
+      });
+      
+      console.log('Document picker result:', JSON.stringify(result, null, 2));
+      
+      if (!result.assets || !result.assets[0]) {
+        console.log('No file selected or picker cancelled');
+        Alert.alert('Error', 'No file was selected');
+        return;
+      }
+
+      const file = result.assets[0];
+      console.log('Selected file:', JSON.stringify(file, null, 2));
+      setLoading(true);
+      
+      try {
+        // Check if file exists
+        const fileInfo = await FileSystem.getInfoAsync(file.uri);
+        console.log('File info:', JSON.stringify(fileInfo, null, 2));
+        
+        if (!fileInfo.exists) {
+          throw new Error('File does not exist at the specified URI');
+        }
+
+        // Read the file content
+        console.log('Reading file content from:', file.uri);
+        const content = await FileSystem.readAsStringAsync(file.uri);
+        console.log('File content length:', content.length);
+        
+        if (!content) {
+          throw new Error('File content is empty');
+        }
+        
+        // Create a message with the file content
+        const userMessage: Message = {
+          role: 'user',
+          content: `📎 Uploaded document: ${file.name}\n\nContent:\n${content}`,
+        };
+        
+        // Add file message to conversation
+        const updatedMessages = [...messages, userMessage];
+        setMessages(updatedMessages);
+        
+        // Get AI response about the document
+        try {
+          console.log('Sending document to AI for analysis...');
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4',
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are analyzing a document that has been uploaded. Please:
+1. Summarize the key points
+2. Identify the main themes or arguments
+3. Ask relevant questions to help the user explore the content deeper
+Keep your response focused and concise.`,
+                },
+                ...updatedMessages,
+              ],
+            }),
+          });
+
+          const data = await res.json();
+          console.log('AI response received');
+          const reply = data.choices?.[0]?.message?.content;
+
+          if (reply) {
+            const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
+            const finalMessages = [...updatedMessages, assistantMessage];
+            setMessages(finalMessages);
+            updateConversationTitle(finalMessages);
+          }
+        } catch (error) {
+          console.error('Error processing document with AI:', error);
+          const errorMessage: Message = { role: 'assistant', content: '⚠️ Error analyzing document.' };
+          setMessages([...updatedMessages, errorMessage]);
+        }
+      } catch (error) {
+        console.error('Error reading file content:', error);
+        Alert.alert('Error', 'Could not read the file content. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error in document picker:', error);
+      Alert.alert('Error', 'Could not access the document picker. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -329,23 +434,9 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
                 </View>
                 <TouchableOpacity 
                   style={styles.penButton}
-                  onPress={() => {
-                    if (currentConversationId) {
-                      navigation.navigate('Notes', {
-                        conversationId: currentConversationId,
-                        messages: messages,
-                      });
-                    } else {
-                      // If no conversation exists yet, create one first
-                      createNewConversation();
-                      navigation.navigate('Notes', {
-                        conversationId: currentConversationId || Date.now().toString(),
-                        messages: messages,
-                      });
-                    }
-                  }}
+                  onPress={() => setShowContextMenu(true)}
                 >
-                  <Icon name="book-outline" size={20} color="#888" />
+                  <Icon name="ellipsis-horizontal" size={20} color="#888" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -415,6 +506,52 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
             />
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showContextMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowContextMenu(false)}
+      >
+        <Pressable 
+          style={styles.contextMenuOverlay}
+          onPress={() => setShowContextMenu(false)}
+        >
+          <View style={styles.contextMenu}>
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                setShowContextMenu(false);
+                pickDocument();
+              }}
+            >
+              <Icon name="document-attach" size={20} color="#888" />
+              <Text style={styles.contextMenuText}>Upload Document</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={() => {
+                setShowContextMenu(false);
+                if (currentConversationId) {
+                  navigation.navigate('Notes', {
+                    conversationId: currentConversationId,
+                    messages: messages,
+                  });
+                } else {
+                  createNewConversation();
+                  navigation.navigate('Notes', {
+                    conversationId: currentConversationId || Date.now().toString(),
+                    messages: messages,
+                  });
+                }
+              }}
+            >
+              <Icon name="book-outline" size={20} color="#888" />
+              <Text style={styles.contextMenuText}>Generate Notes</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -582,5 +719,42 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 8,
     marginLeft: 8,
+  },
+  uploadButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+    marginRight: 8,
+  },
+  contextMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contextMenu: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 8,
+    width: '80%',
+    maxWidth: 300,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  contextMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 8,
+  },
+  contextMenuText: {
+    color: '#fff',
+    fontSize: 16,
+    marginLeft: 12,
   },
 });
