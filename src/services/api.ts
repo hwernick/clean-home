@@ -1,6 +1,6 @@
 import { Message } from '../types';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://classicai-backend.onrender.com/api';
 
 export const sendMessage = async (messages: Message[]): Promise<string> => {
   try {
