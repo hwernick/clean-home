@@ -27,6 +27,8 @@
       },
       "permissions": [
         "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ]
     },
@@ -40,6 +42,18 @@
           "iCloudContainerEnvironment": "Production"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8c295117-22ed-4d10-adce-1443c407a944"
+      }
+    },
+    "owner": "hwernick",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8c295117-22ed-4d10-adce-1443c407a944"
+    }
   }
 }

@@ -19,11 +19,11 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
-import { OPENAI_API_KEY } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { sendMessage as sendMessageToAPI } from '../src/services/api';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -205,65 +205,26 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
     }
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-
-    if (!currentConversationId) {
-      createNewConversation();
-    }
-
-    const userMessage: Message = { role: 'user', content: input };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+  const sendMessage = async (content: string) => {
+    if (!content.trim()) return;
+    
+    const userMessage: Message = { role: 'user', content };
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
-
+    
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: `This GPT is a guide rooted in classical Western thought, drawing from foundational texts in the western canon. It uses the Socratic method exclusively, engaging users through conversational, probing questions to stimulate critical thinking on the subject and text at hand. Instead of providing direct answers, it encourages users to explore their reasoning, challenge assumptions, and arrive at philosophically sound conclusions through dialogue.
-
-This GPT will not stray beyond the scope of the text in question unless prompted to by the user. Once the conversation arrives at a textually based conclusion, the GPT will let the user know and ask if they have any other questions about the text.
-
-This GPT is concise and provides minimal context, guiding users to textually based conclusions through its questions, rather than context. It avoids modern jargon, casual slang, or references outside the classical Western canon. The dialogue remains patient, cheerful, and focused on the logical structure of arguments as found in the text in question, prioritizing clarity, precision, and a conversational tone. It guides users in refining their ideas by questioning definitions, examining implications, and considering counterarguments.
-
-While it promotes rigorous philosophical inquiry, it remains approachable and conversational, inviting users of all knowledge levels into meaningful dialogue. If users present vague or unclear thoughts, it will gently seek clarification through further questions, ensuring the dialogue remains productive and focused.
-
-IMPORTANT: Ask only 1-2 focused questions per response. Avoid overwhelming the user with multiple questions at once. Each question should build on the previous discussion and guide the user toward deeper understanding without creating cognitive overload.
-
-The GPT will never offer definitive answers but will guide users toward uncovering them through self-discovery, fostering a deeper understanding of philosophical principles and critical thinking.`,
-            },
-            ...updatedMessages,
-          ],
-        }),
-      });
-
-      const data = await res.json();
-      const reply = data.choices?.[0]?.message?.content;
-
+      const reply = await sendMessageToAPI([...messages, userMessage]);
       if (reply) {
         const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
-        const finalMessages = [...updatedMessages, assistantMessage];
-        setMessages(finalMessages);
-        updateConversationTitle(finalMessages);
-      } else {
-        const errorMessage: Message = { role: 'assistant', content: '⚠️ No response received.' };
-        setMessages([...updatedMessages, errorMessage]);
+        setMessages(prev => [...prev, assistantMessage]);
       }
     } catch (err) {
-      const errorMessage: Message = { role: 'assistant', content: '⚠️ Error contacting assistant.' };
-      setMessages([...updatedMessages, errorMessage]);
+      console.error('Error sending message:', err);
+      const errorMessage: Message = { role: 'assistant', content: '⚠️ Error sending message.' };
+      setMessages(prev => [...prev, errorMessage]);
     }
-
+    
     setLoading(false);
   };
 
@@ -282,102 +243,42 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
 
   const pickDocument = async () => {
     try {
-      console.log('Starting document picker...');
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'text/*'],
-        multiple: false,
-        copyToCacheDirectory: true
+        type: '*/*',
+        copyToCacheDirectory: true,
       });
-      
-      console.log('Document picker result:', JSON.stringify(result, null, 2));
-      
-      if (!result.assets || !result.assets[0]) {
-        console.log('No file selected or picker cancelled');
-        Alert.alert('Error', 'No file was selected');
-        return;
-      }
 
-      const file = result.assets[0];
-      console.log('Selected file:', JSON.stringify(file, null, 2));
-      setLoading(true);
-      
-      try {
-        // Check if file exists
-        const fileInfo = await FileSystem.getInfoAsync(file.uri);
-        console.log('File info:', JSON.stringify(fileInfo, null, 2));
-        
-        if (!fileInfo.exists) {
-          throw new Error('File does not exist at the specified URI');
-        }
-
-        // Read the file content
-        console.log('Reading file content from:', file.uri);
+      if (result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
         const content = await FileSystem.readAsStringAsync(file.uri);
-        console.log('File content length:', content.length);
         
-        if (!content) {
-          throw new Error('File content is empty');
-        }
-        
-        // Create a message with the file content
-        const userMessage: Message = {
-          role: 'user',
-          content: `📎 Uploaded document: ${file.name}\n\nContent:\n${content}`,
-        };
-        
-        // Add file message to conversation
-        const updatedMessages = [...messages, userMessage];
-        setMessages(updatedMessages);
-        
-        // Get AI response about the document
-        try {
-          console.log('Sending document to AI for analysis...');
-          const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${OPENAI_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'gpt-4',
-              messages: [
-                {
-                  role: 'system',
-                  content: `You are analyzing a document that has been uploaded. Please:
-1. Summarize the key points
-2. Identify the main themes or arguments
-3. Ask relevant questions to help the user explore the content deeper
-Keep your response focused and concise.`,
-                },
-                ...updatedMessages,
-              ],
-            }),
-          });
-
-          const data = await res.json();
-          console.log('AI response received');
-          const reply = data.choices?.[0]?.message?.content;
-
-          if (reply) {
-            const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
-            const finalMessages = [...updatedMessages, assistantMessage];
-            setMessages(finalMessages);
-            updateConversationTitle(finalMessages);
+        if (content) {
+          const userMessage: Message = {
+            role: 'user',
+            content: `[Document Upload: ${file.name}]\n\n${content}`
+          };
+          setMessages(prev => [...prev, userMessage]);
+          setInput('');
+          setLoading(true);
+          
+          try {
+            const reply = await sendMessageToAPI([...messages, userMessage]);
+            if (reply) {
+              const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
+              setMessages(prev => [...prev, assistantMessage]);
+            }
+          } catch (err) {
+            console.error('Error processing document:', err);
+            const errorMessage: Message = { role: 'assistant', content: '⚠️ Error processing document.' };
+            setMessages(prev => [...prev, errorMessage]);
           }
-        } catch (error) {
-          console.error('Error processing document with AI:', error);
-          const errorMessage: Message = { role: 'assistant', content: '⚠️ Error analyzing document.' };
-          setMessages([...updatedMessages, errorMessage]);
+          
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Error reading file content:', error);
-        Alert.alert('Error', 'Could not read the file content. Please try again.');
       }
-    } catch (error) {
-      console.error('Error in document picker:', error);
-      Alert.alert('Error', 'Could not access the document picker. Please try again.');
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('Error picking document:', err);
+      Alert.alert('Error', 'Failed to pick document. Please try again.');
     }
   };
 
@@ -433,12 +334,12 @@ Keep your response focused and concise.`,
                     placeholder="What's on your mind..."
                     placeholderTextColor="#888"
                     multiline
-                    onSubmitEditing={sendMessage}
+                    onSubmitEditing={() => sendMessage(input)}
                     returnKeyType="send"
                   />
                   <TouchableOpacity 
                     style={[styles.sendButton, (!input.trim() || loading) && styles.sendButtonDisabled]} 
-                    onPress={sendMessage}
+                    onPress={() => sendMessage(input)}
                     disabled={loading || !input.trim()}
                   >
                     <Icon name="arrow-up" size={20} color={input.trim() && !loading ? "#fff" : "#888"} />
