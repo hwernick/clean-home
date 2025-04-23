@@ -1,10 +1,10 @@
 import { Message } from '../types';
 
-const API_URL = 'https://classicai-backend.onrender.com/api';
+const API_URL = 'https://classicai-backend.onrender.com';
 
 export const sendMessage = async (messages: Message[]): Promise<string> => {
   try {
-    const response = await fetch(`${API_URL}/chat`, {
+    const response = await fetch(`${API_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
