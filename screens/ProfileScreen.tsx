@@ -1,21 +1,43 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { auth } from '../firebase';
+import { logoutUser, subscribeToAuthChanges } from '../authService';
+import { User } from 'firebase/auth';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Profile'>;
 };
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges((user) => {
+      setUser(user);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      // Navigation will be handled by the auth state change
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.profileHeader}>
           <Icon name="person-circle" size={80} color="#fff" />
-          <Text style={styles.username}>User Name</Text>
-          <Text style={styles.email}>user@example.com</Text>
+          <Text style={styles.username}>{user?.displayName || 'User Name'}</Text>
+          <Text style={styles.email}>{user?.email || 'user@example.com'}</Text>
         </View>
 
         <View style={styles.section}>
@@ -37,7 +59,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </View>
