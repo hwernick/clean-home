@@ -50,20 +50,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          <View style={styles.menuItem}>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('NotificationSettings')}
+          >
             <View style={styles.menuItemLeft}>
               <Icon name="notifications-outline" size={24} color="#fff" />
               <Text style={styles.menuItemText}>Notifications</Text>
             </View>
-            <Switch
-              value={notifications}
-              onValueChange={toggleNotifications}
-              trackColor={{ false: '#3a3a3c', true: 'blue' }}
-              thumbColor={Platform.OS === 'ios' ? '#fff' : notifications ? '#34c759' : '#f4f3f4'}
-              ios_backgroundColor="#3a3a3c"
-              style={styles.switch}
-            />
-          </View>
+            <Icon name="chevron-forward" size={24} color="#888" />
+          </TouchableOpacity>
           <TouchableOpacity 
             style={styles.menuItem}
             onPress={() => navigation.navigate('Privacy')}

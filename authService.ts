@@ -4,9 +4,10 @@ import {
   signOut,
   onAuthStateChanged,
   User as FirebaseUser,
-  updateProfile
+  updateProfile,
+  deleteUser
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User } from './types/User';
 
@@ -81,6 +82,22 @@ export const getUserProfile = async (uid: string): Promise<User | null> => {
     }
     return null;
   } catch (error: any) {
+    throw new Error(error.message);
+  }
+};
+
+// Delete user account
+export const deleteUserAccount = async (user: FirebaseUser) => {
+  try {
+    // Delete user document from Firestore
+    await deleteDoc(doc(db, 'users', user.uid));
+    
+    // Delete the user's authentication account
+    await deleteUser(user);
+    
+    return true;
+  } catch (error: any) {
+    console.error('Error deleting account:', error);
     throw new Error(error.message);
   }
 }; 

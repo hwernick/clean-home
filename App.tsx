@@ -14,6 +14,8 @@ import LoginScreen from './screens/LoginScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import PrivacyScreen from './screens/settings/PrivacyScreen';
 import HelpSupportScreen from './screens/settings/HelpSupportScreen';
+import DataUsageScreen from './screens/settings/DataUsageScreen';
+import NotificationSettingsScreen from './screens/settings/NotificationSettingsScreen';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
@@ -30,6 +32,8 @@ export type RootStackParamList = {
   Register: undefined;
   Privacy: undefined;
   HelpSupport: undefined;
+  DataUsage: undefined;
+  NotificationSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -173,6 +177,28 @@ function Navigation() {
                 backgroundColor: '#1c1c1c',
               },
               headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="DataUsage"
+            component={DataUsageScreen}
+            options={{
+              headerStyle: {
+                backgroundColor: '#1c1c1c',
+              },
+              headerTintColor: '#fff',
+              headerTitle: 'Data Usage',
+            }}
+          />
+          <Stack.Screen
+            name="NotificationSettings"
+            component={NotificationSettingsScreen}
+            options={{
+              headerStyle: {
+                backgroundColor: '#1c1c1c',
+              },
+              headerTintColor: '#fff',
+              headerTitle: 'Notification Settings',
             }}
           />
         </>
