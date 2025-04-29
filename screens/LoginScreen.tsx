@@ -21,6 +21,7 @@ type LoginScreenProps = {
 export default function LoginScreen({ navigation }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [isLogin, setIsLogin] = useState(true);
 
   const handleAuth = async () => {
@@ -28,7 +29,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       if (isLogin) {
         await loginUser(email, password);
       } else {
-        await registerUser(email, password);
+        if (!displayName.trim()) {
+          Alert.alert('Error', 'Please enter a display name');
+          return;
+        }
+        await registerUser(email, password, displayName);
       }
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -44,6 +49,16 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Create Account'}</Text>
         
         <View style={styles.form}>
+          {!isLogin && (
+            <TextInput
+              style={styles.input}
+              placeholder="Display Name"
+              placeholderTextColor="#666"
+              value={displayName}
+              onChangeText={setDisplayName}
+              autoCapitalize="words"
+            />
+          )}
           <TextInput
             style={styles.input}
             placeholder="Email"

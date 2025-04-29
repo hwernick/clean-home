@@ -1,26 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { auth } from '../firebase';
-import { logoutUser, subscribeToAuthChanges } from '../authService';
-import { User } from 'firebase/auth';
+import { useAuth } from '../contexts/AuthContext';
+import { logoutUser } from '../authService';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Profile'>;
 };
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = subscribeToAuthChanges((user) => {
-      setUser(user);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const { user, userProfile } = useAuth();
+  const [notifications, setNotifications] = useState(userProfile?.preferences?.notifications ?? true);
 
   const handleLogout = async () => {
     try {
@@ -28,6 +22,20 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       // Navigation will be handled by the auth state change
     } catch (error: any) {
       Alert.alert('Error', error.message);
+    }
+  };
+
+  const toggleNotifications = async (value: boolean) => {
+    if (!user) return;
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        'preferences.notifications': value
+      });
+      setNotifications(value);
+    } catch (error) {
+      console.error('Error updating notifications:', error);
+      Alert.alert('Error', 'Failed to update notification settings');
     }
   };
 
@@ -42,19 +50,38 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          <TouchableOpacity style={styles.menuItem}>
-            <Icon name="notifications-outline" size={24} color="#fff" />
-            <Text style={styles.menuItemText}>Notifications</Text>
+          <View style={styles.menuItem}>
+            <View style={styles.menuItemLeft}>
+              <Icon name="notifications-outline" size={24} color="#fff" />
+              <Text style={styles.menuItemText}>Notifications</Text>
+            </View>
+            <Switch
+              value={notifications}
+              onValueChange={toggleNotifications}
+              trackColor={{ false: '#3a3a3c', true: 'blue' }}
+              thumbColor={Platform.OS === 'ios' ? '#fff' : notifications ? '#34c759' : '#f4f3f4'}
+              ios_backgroundColor="#3a3a3c"
+              style={styles.switch}
+            />
+          </View>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('Privacy')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Icon name="lock-closed-outline" size={24} color="#fff" />
+              <Text style={styles.menuItemText}>Privacy</Text>
+            </View>
             <Icon name="chevron-forward" size={24} color="#888" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem}>
-            <Icon name="lock-closed-outline" size={24} color="#fff" />
-            <Text style={styles.menuItemText}>Privacy</Text>
-            <Icon name="chevron-forward" size={24} color="#888" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem}>
-            <Icon name="help-circle-outline" size={24} color="#fff" />
-            <Text style={styles.menuItemText}>Help & Support</Text>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('HelpSupport')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Icon name="help-circle-outline" size={24} color="#fff" />
+              <Text style={styles.menuItemText}>Help & Support</Text>
+            </View>
             <Icon name="chevron-forward" size={24} color="#888" />
           </TouchableOpacity>
         </View>
@@ -103,15 +130,22 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   menuItemText: {
-    flex: 1,
     fontSize: 16,
     color: '#fff',
     marginLeft: 16,
+  },
+  switch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
   logoutButton: {
     backgroundColor: '#ff3b30',

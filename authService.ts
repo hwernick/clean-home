@@ -3,15 +3,39 @@ import {
   signInWithEmailAndPassword, 
   signOut,
   onAuthStateChanged,
-  User
+  User as FirebaseUser,
+  updateProfile
 } from 'firebase/auth';
-import { auth } from './firebase';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import { User } from './types/User';
 
 // Register a new user
-export const registerUser = async (email: string, password: string) => {
+export const registerUser = async (email: string, password: string, displayName?: string) => {
   try {
+    // Create auth user
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    const user = userCredential.user;
+
+    // Update display name if provided
+    if (displayName) {
+      await updateProfile(user, { displayName });
+    }
+
+    // Create user document in Firestore
+    await setDoc(doc(db, 'users', user.uid), {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      createdAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+      preferences: {
+        theme: 'dark',
+        notifications: true
+      }
+    });
+
+    return user;
   } catch (error: any) {
     throw new Error(error.message);
   }
@@ -21,7 +45,14 @@ export const registerUser = async (email: string, password: string) => {
 export const loginUser = async (email: string, password: string) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    const user = userCredential.user;
+
+    // Update last login timestamp
+    await setDoc(doc(db, 'users', user.uid), {
+      lastLoginAt: serverTimestamp(),
+    }, { merge: true });
+
+    return user;
   } catch (error: any) {
     throw new Error(error.message);
   }
@@ -37,6 +68,19 @@ export const logoutUser = async () => {
 };
 
 // Subscribe to auth state changes
-export const subscribeToAuthChanges = (callback: (user: User | null) => void) => {
+export const subscribeToAuthChanges = (callback: (user: FirebaseUser | null) => void) => {
   return onAuthStateChanged(auth, callback);
+};
+
+// Get user profile
+export const getUserProfile = async (uid: string): Promise<User | null> => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    if (userDoc.exists()) {
+      return userDoc.data() as User;
+    }
+    return null;
+  } catch (error: any) {
+    throw new Error(error.message);
+  }
 }; 

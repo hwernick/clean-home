@@ -1,14 +1,16 @@
-import express, { Request, Response, Router, RequestHandler } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import userRoutes from './routes/user.routes';
+import notificationRoutes from './routes/notification.routes';
 
 // Load environment variables
 dotenv.config();
 
 // Initialize Express app
 const app = express();
-const router = Router();
+const router = express.Router();
 const PORT = process.env.PORT || 5000;
 
 // Initialize OpenAI
@@ -23,7 +25,7 @@ app.use(express.json());
 // Routes
 router.get('/', ((req: Request, res: Response) => {
   res.send('ClassicaI API is running');
-}) as RequestHandler);
+}) as express.RequestHandler);
 
 // OpenAI API endpoint
 router.post('/api/chat', (async (req: Request, res: Response) => {
@@ -61,10 +63,37 @@ The GPT will never offer definitive answers but will guide users toward uncoveri
     console.error('Error calling OpenAI API:', error);
     res.status(500).json({ error: 'Failed to get response from AI' });
   }
-}) as RequestHandler);
+}) as express.RequestHandler);
 
 // Use router
-app.use(router);
+app.use('/api/users', userRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Error handling middleware
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({
+    error: {
+      message: err.message,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+// 404 handler
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    error: {
+      message: 'Route not found',
+      timestamp: new Date().toISOString()
+    }
+  });
+});
 
 // Start server
 app.listen(PORT, () => {

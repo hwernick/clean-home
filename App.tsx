@@ -12,6 +12,8 @@ import PhilosopherCenter from './screens/PhilosopherCenter';
 import PersonalPhilosophyHub from './screens/PersonalPhilosophyHub';
 import LoginScreen from './screens/LoginScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import PrivacyScreen from './screens/settings/PrivacyScreen';
+import HelpSupportScreen from './screens/settings/HelpSupportScreen';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
@@ -25,6 +27,9 @@ export type RootStackParamList = {
   PhilosopherCenter: undefined;
   PersonalPhilosophyHub: undefined;
   Login: undefined;
+  Register: undefined;
+  Privacy: undefined;
+  HelpSupport: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -146,6 +151,28 @@ function Navigation() {
               headerTitleStyle: {
                 fontWeight: 'bold',
               },
+            }}
+          />
+          <Stack.Screen
+            name="Privacy"
+            component={PrivacyScreen}
+            options={{
+              title: 'Privacy',
+              headerStyle: {
+                backgroundColor: '#1c1c1c',
+              },
+              headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="HelpSupport"
+            component={HelpSupportScreen}
+            options={{
+              title: 'Help & Support',
+              headerStyle: {
+                backgroundColor: '#1c1c1c',
+              },
+              headerTintColor: '#fff',
             }}
           />
         </>
