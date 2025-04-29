@@ -15,7 +15,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
-import * as DocumentPicker from 'expo-document-picker';
+import * as Document from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type PersonalPhilosophyHubProps = {

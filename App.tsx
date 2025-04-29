@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
+import NotificationService from './services/NotificationService';
 
 // Import your screens here
 import DialogueScreen from './screens/DialogueScreen';
@@ -208,6 +209,28 @@ function Navigation() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Set up notification listeners
+    const notificationReceivedListener = NotificationService.addNotificationReceivedListener(
+      notification => {
+        console.log('Notification received:', notification);
+      }
+    );
+
+    const notificationResponseListener = NotificationService.addNotificationResponseReceivedListener(
+      response => {
+        console.log('Notification response:', response);
+        // Handle notification interaction here
+      }
+    );
+
+    // Cleanup listeners on unmount
+    return () => {
+      notificationReceivedListener.remove();
+      notificationResponseListener.remove();
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <NavigationContainer>

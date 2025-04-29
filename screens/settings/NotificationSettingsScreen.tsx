@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Switch, Platform, Alert } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Switch, Platform, Alert } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import NotificationService from '../../services/NotificationService';
 
 interface NotificationPreferences {
   dailyQuotes: boolean;
@@ -25,7 +25,18 @@ export default function NotificationSettingsScreen() {
 
   useEffect(() => {
     loadPreferences();
+    setupNotifications();
   }, []);
+
+  const setupNotifications = async () => {
+    const hasPermission = await NotificationService.requestPermissions();
+    if (!hasPermission) {
+      Alert.alert(
+        'Notification Permission Required',
+        'Please enable notifications in your device settings to receive updates.'
+      );
+    }
+  };
 
   const loadPreferences = async () => {
     if (!user) return;
@@ -46,13 +57,66 @@ export default function NotificationSettingsScreen() {
   const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
     if (!user) return;
     try {
+      // First update the local state to make the UI responsive
       const newPreferences = { ...preferences, [key]: value };
+      setPreferences(newPreferences);
+      
+      // Then update Firestore
       await updateDoc(doc(db, 'users', user.uid), {
         'preferences.notifications': newPreferences
       });
-      setPreferences(newPreferences);
+
+      // Handle notification scheduling based on preferences
+      try {
+        if (key === 'dailyQuotes' && value) {
+          await NotificationService.scheduleDailyNotification(
+            'Daily Quote',
+            'Time for your daily philosophical insight!',
+            9, // 9 AM
+            0  // 0 minutes
+          );
+        } else if (key === 'dailyQuotes' && !value) {
+          // Cancel daily quote notifications
+          const notifications = await NotificationService.getAllScheduledNotifications();
+          notifications
+            .filter(n => n.content.title === 'Daily Quote')
+            .forEach(n => NotificationService.cancelNotification(n.identifier));
+        }
+
+        if (key === 'reminders' && value) {
+          await NotificationService.scheduleDailyNotification(
+            'Daily Reminder',
+            'Time to reflect on your philosophical journey!',
+            20, // 8 PM
+            0   // 0 minutes
+          );
+        } else if (key === 'reminders' && !value) {
+          // Cancel reminder notifications
+          const notifications = await NotificationService.getAllScheduledNotifications();
+          notifications
+            .filter(n => n.content.title === 'Daily Reminder')
+            .forEach(n => NotificationService.cancelNotification(n.identifier));
+        }
+
+        // Update notification handler settings based on sound/vibration preferences
+        if (key === 'sound' || key === 'vibration') {
+          NotificationService.setNotificationHandler({
+            handleNotification: async () => ({
+              shouldShowAlert: true,
+              shouldPlaySound: newPreferences.sound,
+              shouldSetBadge: true,
+            }),
+          });
+        }
+      } catch (notificationError) {
+        console.error('Error handling notifications:', notificationError);
+        // Don't show an alert for notification errors, just log them
+        // This ensures the UI remains responsive even if notification scheduling fails
+      }
     } catch (error) {
       console.error('Error updating notification preferences:', error);
+      // Revert the local state if Firestore update fails
+      setPreferences(preferences);
       Alert.alert('Error', 'Failed to update notification settings');
     }
   };
