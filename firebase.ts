@@ -18,5 +18,15 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Initialize Analytics only if supported
-export const analytics = isSupported().then(yes => yes ? getAnalytics(app) : null); 
+// Initialize Analytics with improved error handling
+export const initializeAnalytics = async () => {
+  try {
+    const supported = await isSupported();
+    return supported ? getAnalytics(app) : null;
+  } catch (error) {
+    console.error('Failed to initialize analytics:', error);
+    return null;
+  }
+};
+
+export const analytics = initializeAnalytics();

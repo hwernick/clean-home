@@ -14,6 +14,11 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { 
+  constructWikidataUrl, 
+  extractImageUrl, 
+  isPhilosopher 
+} from '../utils/wikidataApi';
 
 type PhilosopherCenterProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PhilosopherCenter'>;
@@ -51,7 +56,10 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
       try {
         const philosopherIds = Object.values(MAJOR_PHILOSOPHERS).map(p => p.id);
         const response = await fetch(
-          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopherIds.join('|')}&format=json&origin=*&props=descriptions|labels|claims`
+          constructWikidataUrl('wbgetentities', {
+            ids: philosopherIds.join('|'),
+            props: 'descriptions|labels|claims'
+          })
         );
         const data = await response.json();
         
@@ -60,15 +68,7 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
             const philosopher = Object.values(MAJOR_PHILOSOPHERS).find(p => p.id === entity.id);
             if (!philosopher) return null;
 
-            let imageUrl = '';
-            if (entity.claims?.P18) {
-              const imageClaim = entity.claims.P18[0];
-              if (imageClaim.mainsnak?.datavalue?.value) {
-                const imageName = imageClaim.mainsnak.datavalue.value;
-                // Use a higher quality image size and ensure proper encoding
-                imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(imageName)}`;
-              }
-            }
+            const imageUrl = extractImageUrl(entity);
 
             return {
               id: entity.id,
@@ -108,7 +108,10 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
         try {
           const philosopherIds = Object.values(MAJOR_PHILOSOPHERS).map(p => p.id);
           const response = await fetch(
-            `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopherIds.join('|')}&format=json&origin=*&props=descriptions|labels|claims`
+            constructWikidataUrl('wbgetentities', {
+              ids: philosopherIds.join('|'),
+              props: 'descriptions|labels|claims'
+            })
           );
           const data = await response.json();
           
@@ -117,15 +120,7 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
               const philosopher = Object.values(MAJOR_PHILOSOPHERS).find(p => p.id === entity.id);
               if (!philosopher) return null;
 
-              let imageUrl = '';
-              if (entity.claims?.P18) {
-                const imageClaim = entity.claims.P18[0];
-                if (imageClaim.mainsnak?.datavalue?.value) {
-                  const imageName = imageClaim.mainsnak.datavalue.value;
-                  // Use a higher quality image size and ensure proper encoding
-                  imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(imageName)}`;
-                }
-              }
+              const imageUrl = extractImageUrl(entity);
 
               return {
                 id: entity.id,
@@ -163,7 +158,10 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
         
         // Get detailed information about the philosopher using their Wikidata ID
         const entityResponse = await fetch(
-          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopher.id}&format=json&origin=*&props=descriptions|labels|claims`
+          constructWikidataUrl('wbgetentities', {
+            ids: philosopher.id,
+            props: 'descriptions|labels|claims'
+          })
         );
         const entityData = await entityResponse.json();
         const entity = entityData.entities[philosopher.id];
@@ -172,14 +170,7 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
         const description = entity.descriptions?.en?.value || '';
         
         // Get image if available
-        let imageUrl = '';
-        if (entity.claims?.P18) { // P18 is the property ID for image
-          const imageClaim = entity.claims.P18[0];
-          if (imageClaim.mainsnak?.datavalue?.value) {
-            const imageName = imageClaim.mainsnak.datavalue.value;
-            imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=200&fname=${encodeURIComponent(imageName)}`;
-          }
-        }
+        const imageUrl = extractImageUrl(entity, 200);
 
         setPhilosophers([{
           id: philosopher.id,
@@ -192,7 +183,11 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
         console.log('No exact match found, using search');
         // Search Wikidata for philosophers
         const response = await fetch(
-          `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=en&format=json&origin=*&type=item`
+          constructWikidataUrl('wbsearchentities', {
+            search: query,
+            language: 'en',
+            type: 'item'
+          })
         );
         const data = await response.json();
         
@@ -210,28 +205,18 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
         if (philosopherIds.length > 0) {
           // Get detailed information for each philosopher
           const entityResponse = await fetch(
-            `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopherIds.join('|')}&format=json&origin=*&props=descriptions|labels|claims`
+            constructWikidataUrl('wbgetentities', {
+              ids: philosopherIds.join('|'),
+              props: 'descriptions|labels|claims'
+            })
           );
           const entityData = await entityResponse.json();
           
           const results = Object.values(entityData.entities)
-            .filter((entity: any) => {
-              // Check if the entity has philosopher as occupation
-              const occupations = entity.claims?.P106 || [];
-              return occupations.some((claim: any) => 
-                claim.mainsnak?.datavalue?.value?.id === 'Q4964182'
-              );
-            })
-            .map((entity: any, index: number) => {
+            .filter((entity: any) => isPhilosopher(entity))
+            .map((entity: any) => {
               // Get image if available
-              let imageUrl = '';
-              if (entity.claims?.P18) {
-                const imageClaim = entity.claims.P18[0];
-                if (imageClaim.mainsnak?.datavalue?.value) {
-                  const imageName = imageClaim.mainsnak.datavalue.value;
-                  imageUrl = `https://commons.wikimedia.org/w/thumb.php?width=200&fname=${encodeURIComponent(imageName)}`;
-                }
-              }
+              const imageUrl = extractImageUrl(entity, 200);
 
               return {
                 id: entity.id,
@@ -278,16 +263,17 @@ export default function PhilosopherCenter({ navigation }: PhilosopherCenterProps
       } else {
         // If no image found, try Wikidata API
         const wikidataResponse = await fetch(
-          `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${philosopher.id}&format=json&origin=*&props=claims`
+          constructWikidataUrl('wbgetentities', {
+            ids: philosopher.id,
+            props: 'claims'
+          })
         );
         const wikidataData = await wikidataResponse.json();
         const entity = wikidataData.entities[philosopher.id];
         
-        if (entity?.claims?.P18) {
-          const imageClaim = entity.claims.P18[0];
-          if (imageClaim.mainsnak?.datavalue?.value) {
-            const imageName = imageClaim.mainsnak.datavalue.value;
-            const newImageUrl = `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(imageName)}`;
+        if (entity) {
+          const newImageUrl = extractImageUrl(entity);
+          if (newImageUrl) {
             setPhilosophers(prev =>
               prev.map(p =>
                 p.id === philosopher.id ? { ...p, image: newImageUrl } : p

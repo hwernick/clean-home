@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -24,6 +24,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { sendMessage as sendMessageToAPI } from '../src/services/api';
+import { OPENAI_API_KEY } from '@env';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -56,16 +57,20 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
   const scrollRef = useRef<ScrollView>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
 
+  // Extract conversation cleanup logic into a reusable function
+  const handleConversationCleanup = useCallback((conversationId: string, messageCount: number) => {
+    if (conversationId && messageCount === 0) {
+      deleteConversation(conversationId);
+    }
+  }, []);
+
   useEffect(() => {
     navigation.setOptions({
       title: 'Socratic Dialogue',
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => {
-            // Delete conversation if it's empty (no messages)
-            if (currentConversationId && messages.length === 0) {
-              deleteConversation(currentConversationId);
-            }
+            handleConversationCleanup(currentConversationId!, messages.length);
             navigation.goBack();
           }}
           style={{ marginLeft: 8, marginBottom: 16 }}
@@ -82,7 +87,7 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
         </TouchableOpacity>
       ),
     });
-  }, [navigation, currentConversationId, messages]);
+  }, [navigation, currentConversationId, messages, handleConversationCleanup]);
 
   useEffect(() => {
     loadConversations();
@@ -91,11 +96,9 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
   useEffect(() => {
     return () => {
       // Delete conversation if it's empty when leaving the screen
-      if (currentConversationId && messages.length === 0) {
-        deleteConversation(currentConversationId);
-      }
+      handleConversationCleanup(currentConversationId!, messages.length);
     };
-  }, [currentConversationId, messages]);
+  }, [currentConversationId, messages, handleConversationCleanup]);
 
   // Handle initial message if provided
   useEffect(() => {
@@ -159,7 +162,7 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-3.5-turbo',
           messages: [
             {
               role: 'system',
@@ -207,25 +210,69 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
 
   const sendMessage = async (content: string) => {
     if (!content.trim()) return;
-    
-    const userMessage: Message = { role: 'user', content };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
-    
+
     try {
+      // Append user message immediately
+      const userMessage: Message = {
+        role: 'user',
+        content: content.trim(),
+      };
+
+      // Update messages state with user message
+      setMessages(prev => [...prev, userMessage]);
+      setInput('');
+      setLoading(true);
+
+      // Send message using the API service
       const reply = await sendMessageToAPI([...messages, userMessage]);
-      if (reply) {
-        const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
-        setMessages(prev => [...prev, assistantMessage]);
+      
+      // Create assistant message
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: reply.trim(),
+      };
+
+      // Update messages with both user and assistant messages
+      const updatedMessages = [...messages, userMessage, assistantMessage];
+      setMessages(updatedMessages);
+
+      // Handle conversation saving
+      if (currentConversationId) {
+        // Update existing conversation
+        const updatedConversation: Conversation = {
+          id: currentConversationId,
+          title: conversations.find(c => c.id === currentConversationId)?.title || 'New Conversation',
+          messages: updatedMessages,
+          timestamp: Date.now(),
+        };
+
+        // Update conversations state and save
+        const updatedConversations = conversations.map(conv => 
+          conv.id === currentConversationId ? updatedConversation : conv
+        );
+        await saveConversations(updatedConversations);
+      } else {
+        // Create new conversation
+        const newId = Date.now().toString();
+        const newConversation: Conversation = {
+          id: newId,
+          title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+          messages: updatedMessages,
+          timestamp: Date.now(),
+        };
+
+        // Update state and save
+        setCurrentConversationId(newId);
+        const updatedConversations = [...conversations, newConversation];
+        await saveConversations(updatedConversations);
       }
-    } catch (err) {
-      console.error('Error sending message:', err);
-      const errorMessage: Message = { role: 'assistant', content: '⚠️ Error sending message.' };
-      setMessages(prev => [...prev, errorMessage]);
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const formatDate = (timestamp: number) => {
@@ -265,7 +312,36 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
             const reply = await sendMessageToAPI([...messages, userMessage]);
             if (reply) {
               const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
-              setMessages(prev => [...prev, assistantMessage]);
+              const updatedMessages = [...messages, userMessage, assistantMessage];
+              setMessages(updatedMessages);
+              
+              // Save the conversation after processing the document
+              if (currentConversationId) {
+                setConversations(prev => {
+                  const updated = prev.map(conv => 
+                    conv.id === currentConversationId 
+                      ? { ...conv, messages: updatedMessages }
+                      : conv
+                  );
+                  saveConversations(updated);
+                  return updated;
+                });
+              } else {
+                // Create a new conversation if none exists
+                createNewConversation();
+                setConversations(prev => {
+                  const updated = prev.map(conv => 
+                    conv.id === currentConversationId 
+                      ? { ...conv, messages: updatedMessages }
+                      : conv
+                  );
+                  saveConversations(updated);
+                  return updated;
+                });
+              }
+              
+              // Update the conversation title after processing the document
+              updateConversationTitle(updatedMessages);
             }
           } catch (err) {
             console.error('Error processing document:', err);

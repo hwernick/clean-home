@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import NotificationService from '../../services/NotificationService';
+import { handleNotificationScheduling } from '../../utils/notificationConfig';
 
 interface NotificationPreferences {
   dailyQuotes: boolean;
@@ -68,34 +69,8 @@ export default function NotificationSettingsScreen() {
 
       // Handle notification scheduling based on preferences
       try {
-        if (key === 'dailyQuotes' && value) {
-          await NotificationService.scheduleDailyNotification(
-            'Daily Quote',
-            'Time for your daily philosophical insight!',
-            9, // 9 AM
-            0  // 0 minutes
-          );
-        } else if (key === 'dailyQuotes' && !value) {
-          // Cancel daily quote notifications
-          const notifications = await NotificationService.getAllScheduledNotifications();
-          notifications
-            .filter(n => n.content.title === 'Daily Quote')
-            .forEach(n => NotificationService.cancelNotification(n.identifier));
-        }
-
-        if (key === 'reminders' && value) {
-          await NotificationService.scheduleDailyNotification(
-            'Daily Reminder',
-            'Time to reflect on your philosophical journey!',
-            20, // 8 PM
-            0   // 0 minutes
-          );
-        } else if (key === 'reminders' && !value) {
-          // Cancel reminder notifications
-          const notifications = await NotificationService.getAllScheduledNotifications();
-          notifications
-            .filter(n => n.content.title === 'Daily Reminder')
-            .forEach(n => NotificationService.cancelNotification(n.identifier));
+        if (key === 'dailyQuotes' || key === 'reminders') {
+          await handleNotificationScheduling(key, value);
         }
 
         // Update notification handler settings based on sound/vibration preferences

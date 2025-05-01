@@ -15,8 +15,9 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
-import * as Document from 'expo-document-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PhilosophicalAnalysisService } from '../services/PhilosophicalAnalysisService';
 
 type PersonalPhilosophyHubProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PersonalPhilosophyHub'>;
@@ -154,59 +155,8 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
       // Prepare the conversation history for analysis
       const conversationHistory = userMessages.join('\n\n');
 
-      // Make API call to analyze the philosophical viewpoint
-      // This API call only happens when the user explicitly requests an analysis
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert in philosophical analysis. Your task is to analyze the user's philosophical viewpoint based on their conversation history. 
-              
-Identify:
-1. Which philosophical school or tradition their thinking most closely aligns with
-2. Which philosophers or philosophical works have likely influenced their thinking
-3. Key themes and recurring ideas in their philosophical discourse
-4. Strengths in their philosophical reasoning
-5. Areas where their philosophical thinking could be developed further
-
-Provide a concise summary of their overall philosophical perspective.
-
-Format your response as a JSON object with the following structure:
-{
-  "school": "Name of the philosophical school or tradition",
-  "influences": ["Philosopher 1", "Philosopher 2", "Work 1", "Work 2"],
-  "keyThemes": ["Theme 1", "Theme 2", "Theme 3"],
-  "strengths": ["Strength 1", "Strength 2", "Strength 3"],
-  "areasForGrowth": ["Area 1", "Area 2", "Area 3"],
-  "summary": "A concise paragraph summarizing their philosophical perspective"
-}`
-            },
-            {
-              role: 'user',
-              content: `Please analyze my philosophical viewpoint based on the following conversation history:\n\n${conversationHistory}`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze philosophical viewpoint');
-      }
-
-      const data = await response.json();
-      const analysisText = data.choices[0].message.content;
-      
-      // Parse the JSON response
-      const analysisResult = JSON.parse(analysisText);
+      // Use the PhilosophicalAnalysisService to analyze the conversation history
+      const analysisResult = await PhilosophicalAnalysisService.analyzePhilosophicalViewpoint(conversationHistory);
       setAnalysis(analysisResult);
       setShowAnalysisModal(true);
       
