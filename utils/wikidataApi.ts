@@ -1,20 +1,16 @@
 // Constants for Wikidata API
-export const WIKIDATA_API_BASE = 'https://www.wikidata.org/w/api.php';
+export const WIKIDATA_API_URL = 'https://www.wikidata.org/w/api.php';
 export const COMMONS_THUMB_BASE = 'https://commons.wikimedia.org/w/thumb.php';
 
 // Utility function to construct Wikidata API URLs
-export const constructWikidataUrl = (action: string, params: Record<string, string>) => {
-  const baseParams = {
+export function constructWikidataUrl(action: string, params: Record<string, string>) {
+  const queryParams = new URLSearchParams({
     action,
     format: 'json',
-    origin: '*',
-    ...params
-  };
-  const queryString = Object.entries(baseParams)
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join('&');
-  return `${WIKIDATA_API_BASE}?${queryString}`;
-};
+    ...params,
+  });
+  return `${WIKIDATA_API_URL}?${queryParams.toString()}`;
+}
 
 // Utility function to construct image URLs
 export const constructImageUrl = (imageName: string, width: number = 500) => {
@@ -22,21 +18,24 @@ export const constructImageUrl = (imageName: string, width: number = 500) => {
 };
 
 // Function to extract image URL from entity claims
-export const extractImageUrl = (entity: any, width: number = 500): string => {
-  if (entity.claims?.P18) {
-    const imageClaim = entity.claims.P18[0];
-    if (imageClaim.mainsnak?.datavalue?.value) {
-      const imageName = imageClaim.mainsnak.datavalue.value;
-      return constructImageUrl(imageName, width);
-    }
-  }
-  return '';
-};
+export function extractImageUrl(entity: any, size: number = 200): string {
+  if (!entity.claims?.P18) return '';
+  
+  const imageClaim = entity.claims.P18[0];
+  if (!imageClaim?.mainsnak?.datavalue?.value) return '';
+
+  const imageName = imageClaim.mainsnak.datavalue.value;
+  const encodedImageName = encodeURIComponent(imageName);
+  
+  return `https://commons.wikimedia.org/w/thumb.php?width=${size}&fname=${encodedImageName}`;
+}
 
 // Function to check if an entity is a philosopher
-export const isPhilosopher = (entity: any): boolean => {
-  const occupations = entity.claims?.P106 || [];
-  return occupations.some((claim: any) => 
+export function isPhilosopher(entity: any): boolean {
+  if (!entity.claims?.P106) return false;
+
+  // P106 is occupation, Q4964182 is philosopher
+  return entity.claims.P106.some((claim: any) => 
     claim.mainsnak?.datavalue?.value?.id === 'Q4964182'
   );
-}; 
+} 

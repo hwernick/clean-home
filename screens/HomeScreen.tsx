@@ -22,13 +22,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     });
   }, [navigation]);
 
-  const navigateToPhilosophers = () => {
-    // @ts-ignore - TypeScript is having issues with the navigation type
-    navigation.navigate('PhilosopherCenter');
+  const navigateToPhilosopherHub = () => {
+    navigation.navigate('PhilosopherHub');
   };
 
   const navigateToPersonalHub = () => {
-    // @ts-ignore - TypeScript is having issues with the navigation type
     navigation.navigate('PersonalPhilosophyHub');
   };
 
@@ -47,9 +45,9 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
-          onPress={navigateToPhilosophers}
+          onPress={navigateToPhilosopherHub}
         >
-          <Text style={styles.buttonText}>Explore Philosophers</Text>
+          <Text style={styles.buttonText}>Philosopher Hub</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -70,45 +68,36 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    alignItems: 'center',
+    padding: 16,
     justifyContent: 'center',
-    padding: 20,
+    alignItems: 'center',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 10,
-    textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
     color: '#888',
-    marginBottom: 40,
-    textAlign: 'center',
+    marginBottom: 32,
   },
   button: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
     marginBottom: 16,
-    width: '80%',
+    width: '100%',
+    alignItems: 'center',
   },
   secondaryButton: {
     backgroundColor: '#2a2a2a',
-    borderWidth: 1,
-    borderColor: '#333',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

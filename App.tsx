@@ -3,6 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 import NotificationService from './services/NotificationService';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Import your screens here
 import DialogueScreen from './screens/DialogueScreen';
@@ -17,6 +19,8 @@ import PrivacyScreen from './screens/settings/PrivacyScreen';
 import HelpSupportScreen from './screens/settings/HelpSupportScreen';
 import DataUsageScreen from './screens/settings/DataUsageScreen';
 import NotificationSettingsScreen from './screens/settings/NotificationSettingsScreen';
+import PhilosopherChats from './screens/PhilosopherChats';
+import PhilosopherHub from './screens/PhilosopherHub';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
@@ -29,12 +33,14 @@ export type RootStackParamList = {
   };
   PhilosopherCenter: undefined;
   PersonalPhilosophyHub: undefined;
+  PhilosopherChats: undefined;
   Login: undefined;
   Register: undefined;
   Privacy: undefined;
   HelpSupport: undefined;
   DataUsage: undefined;
   NotificationSettings: undefined;
+  PhilosopherHub: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -159,6 +165,20 @@ function Navigation() {
             }}
           />
           <Stack.Screen
+            name="PhilosopherChats"
+            component={PhilosopherChats}
+            options={{
+              title: 'Philosopher Chats',
+              headerStyle: {
+                backgroundColor: '#1c1c1c',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: 'bold',
+              },
+            }}
+          />
+          <Stack.Screen
             name="Privacy"
             component={PrivacyScreen}
             options={{
@@ -202,6 +222,20 @@ function Navigation() {
               headerTitle: 'Notification Settings',
             }}
           />
+          <Stack.Screen
+            name="PhilosopherHub"
+            component={PhilosopherHub}
+            options={{
+              title: 'Philosopher Hub',
+              headerStyle: {
+                backgroundColor: '#1c1c1c',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: 'bold',
+              },
+            }}
+          />
         </>
       )}
     </Stack.Navigator>
@@ -210,32 +244,18 @@ function Navigation() {
 
 export default function App() {
   useEffect(() => {
-    // Set up notification listeners
-    const notificationReceivedListener = NotificationService.addNotificationReceivedListener(
-      notification => {
-        console.log('Notification received:', notification);
-      }
-    );
-
-    const notificationResponseListener = NotificationService.addNotificationResponseReceivedListener(
-      response => {
-        console.log('Notification response:', response);
-        // Handle notification interaction here
-      }
-    );
-
-    // Cleanup listeners on unmount
-    return () => {
-      notificationReceivedListener.remove();
-      notificationResponseListener.remove();
-    };
+    NotificationService.requestPermissions();
   }, []);
 
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <Navigation />
-      </NavigationContainer>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <NavigationContainer>
+            <Navigation />
+          </NavigationContainer>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
