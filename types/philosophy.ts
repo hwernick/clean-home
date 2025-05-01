@@ -7,6 +7,13 @@ export type PhilosophicalAnalysis = {
   summary: string;
 };
 
+export type Message = {
+  id: string;
+  content: string;
+  timestamp: string;
+  isUser: boolean;
+};
+
 export type PhilosopherChat = {
   id: string;
   philosopherId: string;
@@ -15,10 +22,5 @@ export type PhilosopherChat = {
   lastMessage: string;
   lastMessageTime: string;
   unreadCount: number;
-  messages: Array<{
-    id: string;
-    content: string;
-    timestamp: string;
-    isUser: boolean;
-  }>;
+  messages: Message[];
 }; 

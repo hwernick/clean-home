@@ -20,11 +20,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PhilosopherChat } from '../types/philosophy';
+import { PhilosopherChat, Message } from '../types/philosophy';
 import { MAJOR_PHILOSOPHERS } from '../utils/philosophers';
-import { PhilosopherChatService } from '../services/PhilosopherChatService';
+import { PhilosopherChatService, Chat } from '../services/PhilosopherChatService';
+import { StorageService } from '../services/StorageService';
 import { constructWikidataUrl, extractImageUrl, isPhilosopher } from '../utils/wikidataApi';
 import { Swipeable } from 'react-native-gesture-handler';
+import NetInfo from '@react-native-community/netinfo';
 
 type PhilosopherHubProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PhilosopherHub'>;
@@ -39,15 +41,18 @@ type SearchResult = {
 };
 
 export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
-  const [chats, setChats] = useState<PhilosopherChat[]>([]);
-  const [selectedChat, setSelectedChat] = useState<PhilosopherChat | null>(null);
-  const [newMessage, setNewMessage] = useState('');
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Sort chats by most recent activity
   const sortedChats = [...chats].sort((a, b) => 
@@ -55,7 +60,17 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
   );
 
   useEffect(() => {
+    // Check network status
+    const unsubscribe = NetInfo.addEventListener((state: { isConnected: boolean | null }) => {
+      setIsOnline(state.isConnected ?? false);
+    });
+
+    // Load chats
     loadChats();
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -180,15 +195,13 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
     }
 
     // Only create a new chat if one doesn't exist
-    const newChat: PhilosopherChat = {
+    const newChat: Chat = {
       id: philosopher.id,
       philosopherId: philosopher.id,
       philosopherName: philosopher.name,
-      philosopherImage: philosopher.image,
-      lastMessage: '',
-      lastMessageTime: new Date().toISOString(),
-      unreadCount: 0,
       messages: [],
+      lastMessageTime: Date.now(),
+      unreadCount: 0
     };
 
     const updatedChats = [...chats, newChat];
@@ -196,50 +209,26 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
     setSelectedChat(newChat);
     setSearchQuery('');
     setSearchResults([]);
-    await saveChats(updatedChats);
+    
+    // Save the new chat
+    await StorageService.save(`chat_${philosopher.id}`, newChat);
   };
 
   const loadChats = async () => {
     try {
-      const storedChats = await AsyncStorage.getItem('philosopher_chats');
-      let loadedChats: PhilosopherChat[] = [];
-      
-      if (storedChats) {
-        // Parse and remove duplicates based on philosopherId
-        const parsedChats = JSON.parse(storedChats);
-        const uniqueChats = new Map();
-        
-        // Keep only the most recent chat for each philosopher
-        parsedChats.forEach((chat: PhilosopherChat) => {
-          if (!uniqueChats.has(chat.philosopherId) || 
-              new Date(chat.lastMessageTime) > new Date(uniqueChats.get(chat.philosopherId).lastMessageTime)) {
-            uniqueChats.set(chat.philosopherId, chat);
-          }
-        });
-        
-        loadedChats = Array.from(uniqueChats.values());
-      } else {
-        // Initialize with empty chats for major philosophers
-        loadedChats = Object.values(MAJOR_PHILOSOPHERS).map(philosopher => ({
-          id: philosopher.id,
-          philosopherId: philosopher.id,
-          philosopherName: philosopher.name,
-          philosopherImage: `https://commons.wikimedia.org/w/thumb.php?width=500&fname=${encodeURIComponent(philosopher.name.toLowerCase().replace(' ', '_') + '.jpg')}`,
-          lastMessage: '',
-          lastMessageTime: new Date().toISOString(),
-          unreadCount: 0,
-          messages: [],
-        }));
-      }
-      
+      setLoading(true);
+      const loadedChats = await PhilosopherChatService.loadChats();
       setChats(loadedChats);
-      await AsyncStorage.setItem('philosopher_chats', JSON.stringify(loadedChats));
-    } catch (error) {
-      console.error('Error loading chats:', error);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load chats');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveChats = async (updatedChats: PhilosopherChat[]) => {
+  const saveChats = async (updatedChats: Chat[]) => {
     try {
       await AsyncStorage.setItem('philosopher_chats', JSON.stringify(updatedChats));
     } catch (error) {
@@ -248,111 +237,62 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
   };
 
   const handleSendMessage = async () => {
-    if (!selectedChat || !newMessage.trim()) return;
+    if (!selectedChat || !message.trim()) return;
 
-    const message = {
-      id: Date.now().toString(),
-      content: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-      isUser: true,
-    };
-
-    const updatedChats = chats.map(chat => {
-      if (chat.id === selectedChat.id) {
-        return {
-          ...chat,
-          lastMessage: message.content,
-          lastMessageTime: message.timestamp,
-          messages: [...chat.messages, message],
-        };
-      }
-      return chat;
-    });
-
-    setChats(updatedChats);
-    setSelectedChat(updatedChats.find(chat => chat.id === selectedChat.id) || null);
-    setNewMessage('');
-    await saveChats(updatedChats);
-
-    // Get AI response
-    setIsLoading(true);
     try {
-      const conversationHistory = selectedChat.messages.map(msg => ({
-        role: msg.isUser ? 'user' : 'assistant',
-        content: msg.content,
-      }));
-
-      const aiResponse = await PhilosopherChatService.sendMessage(
+      setIsLoading(true);
+      const response = await PhilosopherChatService.sendMessage(
         selectedChat.philosopherId,
-        newMessage.trim(),
-        conversationHistory
+        message.trim()
       );
-
-      const philosopherResponse = {
-        id: (Date.now() + 1).toString(),
-        content: aiResponse,
-        timestamp: new Date().toISOString(),
-        isUser: false,
-      };
-
-      const finalUpdatedChats = updatedChats.map(chat => {
-        if (chat.id === selectedChat.id) {
-          return {
-            ...chat,
-            lastMessage: philosopherResponse.content,
-            lastMessageTime: philosopherResponse.timestamp,
-            messages: [...chat.messages, philosopherResponse],
-          };
+      
+      if (response) {
+        setMessage('');
+        // Update the selected chat with the new message
+        const updatedChat = await PhilosopherChatService.loadChatHistory(selectedChat.philosopherId);
+        if (updatedChat) {
+          setSelectedChat(updatedChat);
+          // Update the chats list
+          const updatedChats = chats.map(chat => 
+            chat.philosopherId === updatedChat.philosopherId ? updatedChat : chat
+          );
+          setChats(updatedChats);
         }
-        return chat;
-      });
-
-      setChats(finalUpdatedChats);
-      setSelectedChat(finalUpdatedChats.find(chat => chat.id === selectedChat.id) || null);
-      await saveChats(finalUpdatedChats);
+      }
     } catch (error) {
-      console.error('Error getting AI response:', error);
-      Alert.alert('Error', 'Failed to get response from the philosopher. Please try again.');
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteChat = async (chatId: string) => {
-    Alert.alert(
-      'Delete Chat',
-      'Are you sure you want to delete this chat? This action cannot be undone.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const updatedChats = chats.filter(chat => chat.id !== chatId);
-            setChats(updatedChats);
-            if (selectedChat?.id === chatId) {
-              setSelectedChat(null);
-            }
-            await saveChats(updatedChats);
-          },
-        },
-      ],
-    );
+  const handleDeleteChat = async (philosopherId: string) => {
+    try {
+      const success = await PhilosopherChatService.deleteChat(philosopherId);
+      if (success) {
+        // Update local state
+        setChats(chats.filter(chat => chat.philosopherId !== philosopherId));
+        if (selectedChat?.philosopherId === philosopherId) {
+          setSelectedChat(null);
+        }
+      } else {
+        Alert.alert('Error', 'Failed to delete chat. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      Alert.alert('Error', 'Failed to delete chat. Please try again.');
+    }
   };
 
-  const renderRightActions = (chatId: string) => {
-    return (
-      <TouchableOpacity
-        style={styles.deleteAction}
-        onPress={() => deleteChat(chatId)}
-      >
-        <Icon name="trash-outline" size={24} color="#fff" />
-      </TouchableOpacity>
-    );
-  };
+  const renderRightActions = (philosopherId: string) => (
+    <TouchableOpacity
+      style={styles.deleteAction}
+      onPress={() => handleDeleteChat(philosopherId)}
+    >
+      <Icon name="trash-outline" size={24} color="#fff" />
+    </TouchableOpacity>
+  );
 
   const renderSearchResult = ({ item }: { item: SearchResult }) => {
     const existingChat = chats.find(chat => chat.philosopherId === item.id);
@@ -381,41 +321,107 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
     );
   };
 
-  const renderChatItem = ({ item }: { item: PhilosopherChat }) => (
+  const renderChatItem = ({ item }: { item: Chat }) => (
     <Swipeable
-      renderRightActions={() => renderRightActions(item.id)}
-      overshootRight={false}
+      renderRightActions={() => renderRightActions(item.philosopherId)}
+      onSwipeableOpen={() => handleDeleteChat(item.philosopherId)}
     >
       <TouchableOpacity
         style={styles.chatItem}
         onPress={() => setSelectedChat(item)}
       >
         <Image
-          source={{ uri: item.philosopherImage }}
+          source={{ uri: `https://www.wikidata.org/wiki/Special:EntityData/${item.philosopherId}.json` }}
           style={styles.chatImage}
+          defaultSource={require('../assets/default-philosopher.png')}
         />
         <View style={styles.chatInfo}>
-          <Text style={styles.chatName}>{item.philosopherName}</Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessage || 'No messages yet'}
+          <Text style={styles.philosopherName}>{item.philosopherName}</Text>
+          <Text style={styles.lastMessage}>
+            {item.messages.length > 0
+              ? item.messages[item.messages.length - 1].content
+              : 'No messages yet'}
           </Text>
         </View>
-        <View style={styles.chatMeta}>
-          <Text style={styles.timeText}>
-            {new Date(item.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>{item.unreadCount}</Text>
-            </View>
-          )}
-        </View>
+        {item.unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadCount}>{item.unreadCount}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     </Swipeable>
   );
 
+  const renderMessage = ({ item }: { item: Message }) => (
+    <View
+      style={[
+        styles.messageContainer,
+        item.isUser ? styles.userMessage : styles.assistantMessage,
+      ]}
+    >
+      <Text style={[
+        styles.messageText,
+        item.isUser ? styles.messageTextUser : styles.messageTextAssistant
+      ]}>
+        {item.content}
+      </Text>
+      <Text style={styles.timestamp}>
+        {new Date(item.timestamp).toLocaleTimeString()}
+      </Text>
+    </View>
+  );
+
+  const renderChatMessages = () => {
+    if (!selectedChat) return null;
+
+    return (
+      <FlatList
+        data={selectedChat.messages}
+        renderItem={renderMessage}
+        keyExtractor={item => item.id}
+        inverted
+        style={styles.messagesList}
+        contentContainerStyle={styles.messagesContainer}
+      />
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        {!isOnline && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineText}>You are offline. Changes will sync when you reconnect.</Text>
+          </View>
+        )}
+        <Text>Loading chats...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        {!isOnline && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineText}>You are offline. Changes will sync when you reconnect.</Text>
+          </View>
+        )}
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity onPress={loadChats} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>You are offline. Changes will sync when you reconnect.</Text>
+        </View>
+      )}
       {selectedChat ? (
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
@@ -431,63 +437,7 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
                 />
                 <Text style={styles.headerName}>{selectedChat.philosopherName}</Text>
               </View>
-
-              <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                ref={scrollRef}
-                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-              >
-                {selectedChat.messages.map((msg, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.messageRow,
-                      msg.isUser ? styles.userAlign : styles.assistantAlign,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.messageText,
-                        msg.isUser ? styles.userText : styles.assistantText,
-                      ]}
-                    >
-                      {msg.content}
-                    </Text>
-                  </View>
-                ))}
-                {isLoading && (
-                  <View style={[styles.messageRow, styles.assistantAlign]}>
-                    <ActivityIndicator size="small" color="#ccc" />
-                  </View>
-                )}
-              </ScrollView>
-
-              <View style={styles.inputWrapper}>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      value={newMessage}
-                      onChangeText={setNewMessage}
-                      placeholder="What's on your mind..."
-                      placeholderTextColor="#888"
-                      multiline
-                      onSubmitEditing={() => handleSendMessage()}
-                      returnKeyType="send"
-                    />
-                    <TouchableOpacity 
-                      style={[styles.sendButton, (!newMessage.trim() || isLoading) && styles.sendButtonDisabled]} 
-                      onPress={handleSendMessage}
-                      disabled={isLoading || !newMessage.trim()}
-                    >
-                      <Icon name="arrow-up" size={20} color={newMessage.trim() && !isLoading ? "#fff" : "#888"} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
+              {renderChatMessages()}
             </View>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
@@ -520,7 +470,7 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
             <FlatList
               data={sortedChats}
               renderItem={renderChatItem}
-              keyExtractor={item => item.id}
+              keyExtractor={item => item.philosopherId}
               contentContainerStyle={styles.chatsList}
             />
           )}
@@ -690,25 +640,18 @@ const styles = StyleSheet.create({
   },
   chatItem: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  chatImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
   chatInfo: {
     flex: 1,
   },
-  chatName: {
+  philosopherName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 4,
   },
   lastMessage: {
@@ -718,20 +661,20 @@ const styles = StyleSheet.create({
   chatMeta: {
     alignItems: 'flex-end',
   },
-  timeText: {
+  timestamp: {
     fontSize: 12,
-    color: '#888',
-    marginBottom: 4,
+    color: '#666',
+    marginTop: 4,
   },
   unreadBadge: {
     backgroundColor: '#007AFF',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  unreadText: {
+  unreadCount: {
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
@@ -742,5 +685,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 80,
     height: '100%',
+  },
+  errorText: {
+    color: '#ff4444',
+    marginBottom: 16,
+  },
+  retryButton: {
+    padding: 12,
+    backgroundColor: '#007AFF',
+    borderRadius: 4,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  messagesContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  messageContainer: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 4,
+  },
+  userMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#007AFF',
+  },
+  assistantMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f0f0f0',
+  },
+  messageTextUser: {
+    color: '#fff',
+  },
+  messageTextAssistant: {
+    color: '#000',
+  },
+  offlineBanner: {
+    backgroundColor: '#ffcc00',
+    padding: 10,
+    alignItems: 'center',
+  },
+  offlineText: {
+    color: '#000',
+    fontSize: 14,
+  },
+  chatImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  messagesList: {
+    flex: 1,
   },
 }); 

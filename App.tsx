@@ -5,13 +5,13 @@ import { ActivityIndicator, View } from 'react-native';
 import NotificationService from './services/NotificationService';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BackgroundSyncService } from './services/BackgroundSyncService';
 
 // Import your screens here
 import DialogueScreen from './screens/DialogueScreen';
 import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import NotesScreen from './screens/NotesScreen';
-import PhilosopherCenter from './screens/PhilosopherCenter';
 import PersonalPhilosophyHub from './screens/PersonalPhilosophyHub';
 import LoginScreen from './screens/LoginScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -19,7 +19,6 @@ import PrivacyScreen from './screens/settings/PrivacyScreen';
 import HelpSupportScreen from './screens/settings/HelpSupportScreen';
 import DataUsageScreen from './screens/settings/DataUsageScreen';
 import NotificationSettingsScreen from './screens/settings/NotificationSettingsScreen';
-import PhilosopherChats from './screens/PhilosopherChats';
 import PhilosopherHub from './screens/PhilosopherHub';
 
 // Define the type for your navigation parameters
@@ -31,9 +30,7 @@ export type RootStackParamList = {
     conversationId: string;
     messages: Array<{ role: string; content: string }>;
   };
-  PhilosopherCenter: undefined;
   PersonalPhilosophyHub: undefined;
-  PhilosopherChats: undefined;
   Login: undefined;
   Register: undefined;
   Privacy: undefined;
@@ -85,13 +82,6 @@ function Navigation() {
             component={HomeScreen}
             options={{
               title: 'Classical',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
             }}
           />
           <Stack.Screen
@@ -99,13 +89,6 @@ function Navigation() {
             component={DialogueScreen}
             options={{
               title: 'Socratic Dialogue',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
             }}
           />
           <Stack.Screen
@@ -113,13 +96,6 @@ function Navigation() {
             component={ProfileScreen}
             options={{
               title: 'Profile',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
             }}
           />
           <Stack.Screen
@@ -127,27 +103,6 @@ function Navigation() {
             component={NotesScreen}
             options={{
               title: 'Notes',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
-            }}
-          />
-          <Stack.Screen
-            name="PhilosopherCenter"
-            component={PhilosopherCenter}
-            options={{
-              title: 'Philosopher Center',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
             }}
           />
           <Stack.Screen
@@ -155,71 +110,6 @@ function Navigation() {
             component={PersonalPhilosophyHub}
             options={{
               title: 'Personal Philosophy Hub',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
-            }}
-          />
-          <Stack.Screen
-            name="PhilosopherChats"
-            component={PhilosopherChats}
-            options={{
-              title: 'Philosopher Chats',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
-            }}
-          />
-          <Stack.Screen
-            name="Privacy"
-            component={PrivacyScreen}
-            options={{
-              title: 'Privacy',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-            }}
-          />
-          <Stack.Screen
-            name="HelpSupport"
-            component={HelpSupportScreen}
-            options={{
-              title: 'Help & Support',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-            }}
-          />
-          <Stack.Screen
-            name="DataUsage"
-            component={DataUsageScreen}
-            options={{
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitle: 'Data Usage',
-            }}
-          />
-          <Stack.Screen
-            name="NotificationSettings"
-            component={NotificationSettingsScreen}
-            options={{
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitle: 'Notification Settings',
             }}
           />
           <Stack.Screen
@@ -227,13 +117,34 @@ function Navigation() {
             component={PhilosopherHub}
             options={{
               title: 'Philosopher Hub',
-              headerStyle: {
-                backgroundColor: '#1c1c1c',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
+            }}
+          />
+          <Stack.Screen
+            name="Privacy"
+            component={PrivacyScreen}
+            options={{
+              title: 'Privacy',
+            }}
+          />
+          <Stack.Screen
+            name="HelpSupport"
+            component={HelpSupportScreen}
+            options={{
+              title: 'Help & Support',
+            }}
+          />
+          <Stack.Screen
+            name="DataUsage"
+            component={DataUsageScreen}
+            options={{
+              title: 'Data Usage',
+            }}
+          />
+          <Stack.Screen
+            name="NotificationSettings"
+            component={NotificationSettingsScreen}
+            options={{
+              title: 'Notification Settings',
             }}
           />
         </>
@@ -244,7 +155,13 @@ function Navigation() {
 
 export default function App() {
   useEffect(() => {
-    NotificationService.requestPermissions();
+    // Start background sync service
+    BackgroundSyncService.start();
+
+    // Cleanup on unmount
+    return () => {
+      BackgroundSyncService.stop();
+    };
   }, []);
 
   return (

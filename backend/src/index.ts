@@ -2,8 +2,11 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import mongoose from 'mongoose';
 import userRoutes from './routes/user.routes';
 import notificationRoutes from './routes/notification.routes';
+import philosopherChatRoutes from './routes/philosopherChat.routes';
+import syncDataRoutes from './routes/syncData.routes';
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +21,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/classical')
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -26,6 +34,12 @@ app.use(express.json());
 router.get('/', ((req: Request, res: Response) => {
   res.send('ClassicaI API is running');
 }) as express.RequestHandler);
+
+// API Routes
+app.use('/api/users', userRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/chats', philosopherChatRoutes);
+app.use('/api/sync', syncDataRoutes);
 
 // OpenAI API endpoint
 router.post('/api/chat', (async (req: Request, res: Response) => {
@@ -50,14 +64,12 @@ router.post('/api/chat', (async (req: Request, res: Response) => {
     const reply = response.choices[0].message.content;
     res.json({ reply });
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
-    res.status(500).json({ error: 'Failed to get response from AI' });
+    console.error('Error in chat endpoint:', error);
+    res.status(500).json({ error: 'Failed to process chat request' });
   }
 }) as express.RequestHandler);
 
-// Use router
-app.use('/api/users', userRoutes);
-app.use('/api/notifications', notificationRoutes);
+app.use(router);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -87,5 +99,5 @@ app.use((req: Request, res: Response) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 }); 
