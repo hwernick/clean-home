@@ -15,18 +15,16 @@ import {
   ScrollView,
   TouchableWithoutFeedback,
   Keyboard,
+  ImageSourcePropType,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhilosopherChat, Message } from '../types/philosophy';
 import { MAJOR_PHILOSOPHERS } from '../utils/philosophers';
 import { PhilosopherChatService, Chat } from '../services/PhilosopherChatService';
 import { StorageService } from '../services/StorageService';
-import { constructWikidataUrl, extractImageUrl, isPhilosopher } from '../utils/wikidataApi';
 import { Swipeable } from 'react-native-gesture-handler';
-import NetInfo from '@react-native-community/netinfo';
 
 type PhilosopherHubProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PhilosopherHub'>;
@@ -36,8 +34,7 @@ type SearchResult = {
   id: string;
   name: string;
   description: string;
-  image: string;
-  url: string;
+  image: ImageSourcePropType;
 };
 
 export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
@@ -52,7 +49,6 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isOnline, setIsOnline] = useState(true);
 
   // Sort chats by most recent activity
   const sortedChats = [...chats].sort((a, b) => 
@@ -60,17 +56,8 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
   );
 
   useEffect(() => {
-    // Check network status
-    const unsubscribe = NetInfo.addEventListener((state: { isConnected: boolean | null }) => {
-      setIsOnline(state.isConnected ?? false);
-    });
-
     // Load chats
     loadChats();
-
-    return () => {
-      unsubscribe();
-    };
   }, []);
 
   useEffect(() => {
@@ -111,68 +98,22 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
     });
   }, [navigation, selectedChat]);
 
-  const searchPhilosophers = async (query: string) => {
-    console.log('Searching for:', query);
+  const searchPhilosophers = (query: string) => {
     setIsSearching(true);
     try {
-      const response = await fetch(
-        constructWikidataUrl('wbsearchentities', {
-          search: query,
-          language: 'en',
-          type: 'item'
-        })
-      );
-      const data = await response.json();
-      console.log('Search response:', data);
-      
-      if (!data.search) {
-        console.log('No search results');
-        setSearchResults([]);
-        return;
-      }
+      // Search in our local philosophers list
+      const results = Object.values(MAJOR_PHILOSOPHERS)
+        .filter(philosopher => 
+          philosopher.name.toLowerCase().includes(query.toLowerCase())
+        )
+        .map(philosopher => ({
+          id: philosopher.id,
+          name: philosopher.name,
+          description: `Chat with ${philosopher.name}`,
+          image: philosopher.image
+        }));
 
-      // Filter for philosophers (Q5 is human, P106 is occupation, Q4964182 is philosopher)
-      const philosopherIds = data.search
-        .filter((result: any) => {
-          // Extract the Q-number from the concepturi
-          const qNumber = result.id;
-          return qNumber;
-        })
-        .map((result: any) => result.id);
-      console.log('Philosopher IDs:', philosopherIds);
-
-      if (philosopherIds.length > 0) {
-        // Get detailed information for each philosopher
-        const entityResponse = await fetch(
-          constructWikidataUrl('wbgetentities', {
-            ids: philosopherIds.join('|'),
-            props: 'descriptions|labels|claims'
-          })
-        );
-        const entityData = await entityResponse.json();
-        console.log('Entity data:', entityData);
-        
-        const results = Object.values(entityData.entities)
-          .filter((entity: any) => isPhilosopher(entity))
-          .map((entity: any) => {
-            const imageUrl = extractImageUrl(entity, 200);
-            console.log('Philosopher found:', entity.labels?.en?.value, 'Image:', imageUrl);
-
-            return {
-              id: entity.id,
-              name: entity.labels?.en?.value || 'Unknown',
-              description: entity.descriptions?.en?.value || '',
-              image: imageUrl,
-              url: `https://www.wikidata.org/wiki/${entity.id}`
-            };
-          });
-
-        console.log('Final results:', results);
-        setSearchResults(results);
-      } else {
-        console.log('No philosopher IDs found');
-        setSearchResults([]);
-      }
+      setSearchResults(results);
     } catch (error) {
       console.error('Error searching philosophers:', error);
       Alert.alert('Error', 'Failed to search for philosophers. Please try again.');
@@ -201,7 +142,7 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
       philosopherName: philosopher.name,
       messages: [],
       lastMessageTime: Date.now(),
-      unreadCount: 0
+      createdAt: Date.now()
     };
 
     const updatedChats = [...chats, newChat];
@@ -228,14 +169,6 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
     }
   };
 
-  const saveChats = async (updatedChats: Chat[]) => {
-    try {
-      await AsyncStorage.setItem('philosopher_chats', JSON.stringify(updatedChats));
-    } catch (error) {
-      console.error('Error saving chats:', error);
-    }
-  };
-
   const handleSendMessage = async () => {
     if (!selectedChat || !message.trim()) return;
 
@@ -248,16 +181,8 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
       
       if (response) {
         setMessage('');
-        // Update the selected chat with the new message
-        const updatedChat = await PhilosopherChatService.loadChatHistory(selectedChat.philosopherId);
-        if (updatedChat) {
-          setSelectedChat(updatedChat);
-          // Update the chats list
-          const updatedChats = chats.map(chat => 
-            chat.philosopherId === updatedChat.philosopherId ? updatedChat : chat
-          );
-          setChats(updatedChats);
-        }
+        // Reload chats to get the updated messages
+        await loadChats();
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -269,15 +194,10 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
 
   const handleDeleteChat = async (philosopherId: string) => {
     try {
-      const success = await PhilosopherChatService.deleteChat(philosopherId);
-      if (success) {
-        // Update local state
-        setChats(chats.filter(chat => chat.philosopherId !== philosopherId));
-        if (selectedChat?.philosopherId === philosopherId) {
-          setSelectedChat(null);
-        }
-      } else {
-        Alert.alert('Error', 'Failed to delete chat. Please try again.');
+      await PhilosopherChatService.deleteChat(philosopherId);
+      setChats(chats.filter(chat => chat.philosopherId !== philosopherId));
+      if (selectedChat?.philosopherId === philosopherId) {
+        setSelectedChat(null);
       }
     } catch (error) {
       console.error('Error deleting chat:', error);
@@ -287,87 +207,61 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
 
   const renderRightActions = (philosopherId: string) => (
     <TouchableOpacity
-      style={styles.deleteAction}
+      style={styles.deleteButton}
       onPress={() => handleDeleteChat(philosopherId)}
     >
       <Icon name="trash-outline" size={24} color="#fff" />
     </TouchableOpacity>
   );
 
-  const renderSearchResult = ({ item }: { item: SearchResult }) => {
-    const existingChat = chats.find(chat => chat.philosopherId === item.id);
-    
-    return (
-      <TouchableOpacity
-        style={styles.searchResultItem}
-        onPress={() => existingChat ? setSelectedChat(existingChat) : addNewPhilosopher(item)}
-      >
-        <Image
-          source={{ uri: item.image }}
-          style={styles.searchResultImage}
-        />
-        <View style={styles.searchResultInfo}>
-          <Text style={styles.searchResultName}>{item.name}</Text>
-          <Text style={styles.searchResultDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-        </View>
-        <Icon 
-          name={existingChat ? "chatbubble-outline" : "add-circle-outline"} 
-          size={24} 
-          color="#007AFF" 
-        />
-      </TouchableOpacity>
-    );
-  };
+  const renderSearchResult = ({ item }: { item: SearchResult }) => (
+    <TouchableOpacity
+      style={styles.searchResult}
+      onPress={() => addNewPhilosopher(item)}
+    >
+      <Image
+        source={item.image}
+        style={styles.searchResultImage}
+      />
+      <View style={styles.searchResultInfo}>
+        <Text style={styles.searchResultName}>{item.name}</Text>
+        <Text style={styles.searchResultDescription} numberOfLines={2}>
+          {item.description}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   const renderChatItem = ({ item }: { item: Chat }) => (
     <Swipeable
       renderRightActions={() => renderRightActions(item.philosopherId)}
-      onSwipeableOpen={() => handleDeleteChat(item.philosopherId)}
     >
       <TouchableOpacity
         style={styles.chatItem}
         onPress={() => setSelectedChat(item)}
       >
         <Image
-          source={{ uri: `https://www.wikidata.org/wiki/Special:EntityData/${item.philosopherId}.json` }}
+          source={MAJOR_PHILOSOPHERS[item.philosopherId]?.image}
           style={styles.chatImage}
-          defaultSource={require('../assets/default-philosopher.png')}
         />
         <View style={styles.chatInfo}>
-          <Text style={styles.philosopherName}>{item.philosopherName}</Text>
-          <Text style={styles.lastMessage}>
+          <Text style={styles.chatName}>{item.philosopherName}</Text>
+          <Text style={styles.chatLastMessage} numberOfLines={1}>
             {item.messages.length > 0
               ? item.messages[item.messages.length - 1].content
               : 'No messages yet'}
           </Text>
         </View>
-        {item.unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadCount}>{item.unreadCount}</Text>
-          </View>
-        )}
       </TouchableOpacity>
     </Swipeable>
   );
 
   const renderMessage = ({ item }: { item: Message }) => (
-    <View
-      style={[
-        styles.messageContainer,
-        item.isUser ? styles.userMessage : styles.assistantMessage,
-      ]}
-    >
-      <Text style={[
-        styles.messageText,
-        item.isUser ? styles.messageTextUser : styles.messageTextAssistant
-      ]}>
-        {item.content}
-      </Text>
-      <Text style={styles.timestamp}>
-        {new Date(item.timestamp).toLocaleTimeString()}
-      </Text>
+    <View style={[
+      styles.messageContainer,
+      item.role === 'user' ? styles.userMessage : styles.assistantMessage
+    ]}>
+      <Text style={styles.messageText}>{item.content}</Text>
     </View>
   );
 
@@ -375,106 +269,88 @@ export default function PhilosopherHub({ navigation }: PhilosopherHubProps) {
     if (!selectedChat) return null;
 
     return (
-      <FlatList
-        data={selectedChat.messages}
-        renderItem={renderMessage}
-        keyExtractor={item => item.id}
-        inverted
-        style={styles.messagesList}
-        contentContainerStyle={styles.messagesContainer}
-      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.chatContainer}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={styles.messagesContainer}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        >
+          {selectedChat.messages.map((message, index) => (
+            <View key={index} style={styles.messageWrapper}>
+              {renderMessage({ item: message })}
+            </View>
+          ))}
+        </ScrollView>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={message}
+            onChangeText={setMessage}
+            placeholder="Type your message..."
+            placeholderTextColor="#666"
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.sendButton, !message.trim() && styles.sendButtonDisabled]}
+            onPress={handleSendMessage}
+            disabled={!message.trim() || isLoading}
+          >
+            <Icon
+              name="send"
+              size={24}
+              color={message.trim() ? '#fff' : '#666'}
+            />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     );
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        {!isOnline && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>You are offline. Changes will sync when you reconnect.</Text>
-          </View>
-        )}
-        <Text>Loading chats...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.container}>
-        {!isOnline && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>You are offline. Changes will sync when you reconnect.</Text>
-          </View>
-        )}
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity onPress={loadChats} style={styles.retryButton}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {!isOnline && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>You are offline. Changes will sync when you reconnect.</Text>
-        </View>
-      )}
       {selectedChat ? (
-        <KeyboardAvoidingView
-          style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.mainContainer}>
-              <View style={styles.chatHeader}>
-                <Image
-                  source={{ uri: selectedChat.philosopherImage }}
-                  style={styles.headerImage}
-                />
-                <Text style={styles.headerName}>{selectedChat.philosopherName}</Text>
-              </View>
-              {renderChatMessages()}
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+        renderChatMessages()
       ) : (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.title}>Philosopher Hub</Text>
-            <View style={styles.searchContainer}>
-              <Icon name="search" size={20} color="#888" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search philosophers..."
-                placeholderTextColor="#888"
-              />
-              {isSearching && (
-                <ActivityIndicator size="small" color="#007AFF" style={styles.searchLoading} />
-              )}
-            </View>
+        <View style={styles.content}>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search philosophers..."
+              placeholderTextColor="#666"
+            />
+            {isSearching && (
+              <ActivityIndicator style={styles.searchIndicator} color="#007AFF" />
+            )}
           </View>
-          {searchResults.length > 0 ? (
+          {searchQuery.trim() ? (
             <FlatList
               data={searchResults}
               renderItem={renderSearchResult}
               keyExtractor={item => item.id}
-              contentContainerStyle={styles.searchResultsList}
+              style={styles.searchResults}
             />
           ) : (
             <FlatList
               data={sortedChats}
               renderItem={renderChatItem}
-              keyExtractor={item => item.philosopherId}
-              contentContainerStyle={styles.chatsList}
+              keyExtractor={item => item.id}
+              style={styles.chatList}
             />
           )}
-        </>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -485,230 +361,103 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1c1c1c',
   },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+  content: {
+    flex: 1,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1c1c1c',
   },
   searchContainer: {
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
   },
   searchInput: {
     flex: 1,
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 12,
     color: '#fff',
-    paddingVertical: 8,
     fontSize: 16,
   },
-  searchLoading: {
+  searchIndicator: {
     marginLeft: 8,
   },
-  keyboardAvoid: {
+  searchResults: {
     flex: 1,
   },
-  mainContainer: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  chatHeader: {
+  searchResult: {
     flexDirection: 'row',
-    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
-  },
-  headerImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  headerName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  scroll: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  scrollContent: {
-    paddingVertical: 24,
-  },
-  messageRow: {
-    marginBottom: 18,
-    maxWidth: '90%',
-  },
-  assistantAlign: {
-    alignSelf: 'flex-start',
-  },
-  userAlign: {
-    alignSelf: 'flex-end',
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  assistantText: {
-    color: '#c5c5c5',
-  },
-  userText: {
-    color: '#f1f1f1',
-  },
-  inputWrapper: {
-    padding: 12,
-    backgroundColor: '#1c1c1c',
-    borderTopWidth: 1,
-    borderColor: '#333',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  inputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  input: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 16,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#2a2a2a',
-  },
-  searchResultsList: {
-    padding: 16,
-  },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
   },
   searchResultImage: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    marginRight: 12,
+    marginRight: 16,
   },
   searchResultInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   searchResultName: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
     marginBottom: 4,
   },
   searchResultDescription: {
+    color: '#888',
     fontSize: 14,
-    color: '#ccc',
   },
-  chatsList: {
-    padding: 16,
+  chatList: {
+    flex: 1,
   },
   chatItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
+  chatImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 16,
+  },
   chatInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
-  philosopherName: {
+  chatName: {
+    color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 4,
   },
-  lastMessage: {
+  chatLastMessage: {
+    color: '#888',
     fontSize: 14,
-    color: '#ccc',
   },
-  chatMeta: {
-    alignItems: 'flex-end',
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  unreadBadge: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  unreadCount: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  deleteAction: {
-    backgroundColor: '#ff3b30',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 80,
-    height: '100%',
-  },
-  errorText: {
-    color: '#ff4444',
-    marginBottom: 16,
-  },
-  retryButton: {
-    padding: 12,
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
-    alignItems: 'center',
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
+  chatContainer: {
+    flex: 1,
   },
   messagesContainer: {
     flex: 1,
     padding: 16,
   },
+  messageWrapper: {
+    marginBottom: 16,
+  },
   messageContainer: {
     maxWidth: '80%',
     padding: 12,
-    borderRadius: 12,
-    marginVertical: 4,
+    borderRadius: 16,
   },
   userMessage: {
     alignSelf: 'flex-end',
@@ -716,30 +465,44 @@ const styles = StyleSheet.create({
   },
   assistantMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#333',
   },
-  messageTextUser: {
+  messageText: {
     color: '#fff',
+    fontSize: 16,
   },
-  messageTextAssistant: {
-    color: '#000',
+  inputContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
   },
-  offlineBanner: {
-    backgroundColor: '#ffcc00',
-    padding: 10,
-    alignItems: 'center',
+  input: {
+    flex: 1,
+    backgroundColor: '#333',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    color: '#fff',
+    fontSize: 16,
+    maxHeight: 100,
   },
-  offlineText: {
-    color: '#000',
-    fontSize: 14,
-  },
-  chatImage: {
+  sendButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
-  messagesList: {
-    flex: 1,
+  sendButtonDisabled: {
+    backgroundColor: '#333',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
   },
 }); 

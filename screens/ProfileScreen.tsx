@@ -1,86 +1,64 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../App';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { logoutUser } from '../authService';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 
 type ProfileScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Profile'>;
+  navigation: any;
 };
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
-  const { user, userProfile } = useAuth();
-  const [notifications, setNotifications] = useState(userProfile?.preferences?.notifications ?? true);
+  const { user, setUser } = useAuth();
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
-      // Navigation will be handled by the auth state change
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
+      setUser(null);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.error('Error logging out:', error);
+      Alert.alert('Error', 'Failed to log out');
     }
   };
 
-  const toggleNotifications = async (value: boolean) => {
-    if (!user) return;
-
+  const updateProfile = async () => {
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        'preferences.notifications': value
+      if (!user) return;
+      
+      // Update local state
+      setUser({
+        ...user,
+        displayName
       });
-      setNotifications(value);
+      
+      // TODO: Implement local profile storage
+      Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
-      console.error('Error updating notifications:', error);
-      Alert.alert('Error', 'Failed to update notification settings');
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', 'Failed to update profile');
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.profileHeader}>
-          <Icon name="person-circle" size={80} color="#fff" />
-          <Text style={styles.username}>{user?.displayName || 'User Name'}</Text>
-          <Text style={styles.email}>{user?.email || 'user@example.com'}</Text>
+        <Text style={styles.title}>Profile</Text>
+        
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Display Name</Text>
+          <TextInput
+            style={styles.input}
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Enter your display name"
+          />
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('NotificationSettings')}
-          >
-            <View style={styles.menuItemLeft}>
-              <Icon name="notifications-outline" size={24} color="#fff" />
-              <Text style={styles.menuItemText}>Notifications</Text>
-            </View>
-            <Icon name="chevron-forward" size={24} color="#888" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Privacy')}
-          >
-            <View style={styles.menuItemLeft}>
-              <Icon name="lock-closed-outline" size={24} color="#fff" />
-              <Text style={styles.menuItemText}>Privacy</Text>
-            </View>
-            <Icon name="chevron-forward" size={24} color="#888" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('HelpSupport')}
-          >
-            <View style={styles.menuItemLeft}>
-              <Icon name="help-circle-outline" size={24} color="#fff" />
-              <Text style={styles.menuItemText}>Help & Support</Text>
-            </View>
-            <Icon name="chevron-forward" size={24} color="#888" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.button} onPress={updateProfile}>
+          <Text style={styles.buttonText}>Update Profile</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -93,66 +71,52 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1c1c1c',
+    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  username: {
+  title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 16,
+    marginBottom: 24,
   },
-  email: {
-    fontSize: 16,
-    color: '#888',
-    marginTop: 4,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#888',
+  inputContainer: {
     marginBottom: 16,
   },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuItemText: {
+  label: {
     fontSize: 16,
-    color: '#fff',
-    marginLeft: 16,
+    marginBottom: 8,
   },
-  switch: {
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   logoutButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: '#FF3B30',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 'auto',
   },
   logoutButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 }); 

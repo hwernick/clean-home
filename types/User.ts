@@ -1,13 +1,7 @@
 export interface User {
-  uid: string;          // Firebase Auth UID
-  email: string;
-  displayName?: string;
-  createdAt: number;
-  lastLoginAt: number;
-  preferences?: {
-    theme?: string;
-    notifications?: boolean;
-    dataCollection?: boolean;
-    locationServices?: boolean;
-  };
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 } 

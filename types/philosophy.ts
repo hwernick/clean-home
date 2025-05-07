@@ -11,7 +11,7 @@ export type Message = {
   id: string;
   content: string;
   timestamp: string;
-  isUser: boolean;
+  role: 'user' | 'assistant';
 };
 
 export type PhilosopherChat = {

@@ -11,7 +11,7 @@ export interface Chat {
   philosopherName: string;
   messages: Message[];
   lastMessageTime: number;
-  unreadCount: number;
+  createdAt: number;
 }
 
 export class PhilosopherChatService {
@@ -151,29 +151,8 @@ export class PhilosopherChatService {
   // Load all chats for a user
   static async loadChats(): Promise<Chat[]> {
     try {
-      // Try to load from local storage first
       const localChats = await StorageService.load('chats');
-      if (localChats) {
-        return localChats;
-      }
-
-      // If no local data, fetch from server
-      const response = await fetch(`${API_URL}/api/chats`, {
-        headers: {
-          'Authorization': `Bearer ${await this.getAuthToken()}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch chats');
-      }
-
-      const chats = await response.json();
-      
-      // Save to local storage for future offline access
-      await StorageService.save('chats', chats);
-      
-      return chats;
+      return localChats || [];
     } catch (error) {
       console.error('Error loading chats:', error);
       return [];
@@ -184,77 +163,38 @@ export class PhilosopherChatService {
   static async loadChatHistory(philosopherId: string): Promise<Chat | null> {
     try {
       const chatKey = `chat_${philosopherId}`;
-      
-      // Try to load from local storage first
       const localChat = await StorageService.load(chatKey);
-      if (localChat) {
-        return localChat;
-      }
-
-      // If no local data, fetch from server
-      const response = await fetch(`${API_URL}/api/chats/${philosopherId}`, {
-        headers: {
-          'Authorization': `Bearer ${await this.getAuthToken()}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch chat history');
-      }
-
-      const chat = await response.json();
-      
-      // Save to local storage for future offline access
-      await StorageService.save(chatKey, chat);
-      
-      return chat;
+      return localChat || null;
     } catch (error) {
       console.error('Error loading chat history:', error);
       return null;
     }
   }
 
-  // Send a message
+  // Send a message in a chat
   static async sendMessage(philosopherId: string, content: string): Promise<Message | null> {
     try {
       const userMessage: Message = {
         id: Date.now().toString(),
         content,
+        role: 'user',
         timestamp: new Date().toISOString(),
-        isUser: true
       };
 
-      // Save message locally first
+      // Update local chat
       const localChat = await StorageService.load(`chat_${philosopherId}`);
       if (localChat) {
         localChat.messages.push(userMessage);
         localChat.lastMessageTime = Date.now();
         await StorageService.save(`chat_${philosopherId}`, localChat);
-        
-        // Add to sync queue
-        BackgroundSyncService.addToQueue(`chat_${philosopherId}`);
       }
 
-      // Try to send to server
-      const response = await fetch(`${API_URL}/api/chats/${philosopherId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await this.getAuthToken()}`
-        },
-        body: JSON.stringify({ content })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
-
-      const responseData = await response.json();
+      // For now, return a simple response
       const assistantMessage: Message = {
-        id: Date.now().toString(),
-        content: responseData.content,
+        id: (Date.now() + 1).toString(),
+        content: "I'm sorry, but I'm currently in offline mode. Please check back later for a response.",
+        role: 'assistant',
         timestamp: new Date().toISOString(),
-        isUser: false
       };
 
       // Update local chat with assistant's response
@@ -262,9 +202,6 @@ export class PhilosopherChatService {
         localChat.messages.push(assistantMessage);
         localChat.lastMessageTime = Date.now();
         await StorageService.save(`chat_${philosopherId}`, localChat);
-        
-        // Add to sync queue again
-        BackgroundSyncService.addToQueue(`chat_${philosopherId}`);
       }
 
       return assistantMessage;
@@ -278,19 +215,8 @@ export class PhilosopherChatService {
   static async deleteChat(philosopherId: string): Promise<boolean> {
     try {
       const chatKey = `chat_${philosopherId}`;
-      
-      // Delete from local storage
       await StorageService.delete(chatKey);
-      
-      // Delete from server
-      const response = await fetch(`${API_URL}/api/chats/${philosopherId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${await this.getAuthToken()}`
-        }
-      });
-
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error deleting chat:', error);
       return false;

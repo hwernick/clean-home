@@ -1,60 +1,34 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-import { subscribeToAuthChanges } from '../authService';
-import { User } from '../types/User';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type AuthContextType = {
-  user: FirebaseUser | null;
-  userProfile: User | null;
+interface User {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+}
+
+interface AuthContextType {
+  user: User | null;
+  setUser: (user: User | null) => void;
   loading: boolean;
-};
+}
 
-const AuthContext = createContext<AuthContextType>({ user: null, userProfile: null, loading: true });
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribeAuth = subscribeToAuthChanges((user) => {
-      setUser(user);
-      if (!user) {
-        setUserProfile(null);
-        setLoading(false);
-      }
-    });
-
-    return unsubscribeAuth;
-  }, []);
-
-  // Subscribe to user profile changes
-  useEffect(() => {
-    if (!user) return;
-
-    const unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), 
-      (doc) => {
-        if (doc.exists()) {
-          setUserProfile(doc.data() as User);
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error fetching user profile:', error);
-        setLoading(false);
-      }
-    );
-
-    return unsubscribeProfile;
-  }, [user]);
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading }}>
+    <AuthContext.Provider value={{ user, setUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export const useAuth = () => useContext(AuthContext); 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}; 

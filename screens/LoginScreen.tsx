@@ -12,13 +12,14 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
-import { loginUser, registerUser } from '../authService';
+import { useAuth } from '../contexts/AuthContext';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
+  const { setUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -26,17 +27,32 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
   const handleAuth = async () => {
     try {
+      if (!email || !password) {
+        Alert.alert('Error', 'Please enter both email and password');
+        return;
+      }
+
       if (isLogin) {
-        await loginUser(email, password);
+        // For now, just create a basic user object
+        setUser({
+          id: '1',
+          email,
+          displayName: displayName || email.split('@')[0],
+        });
       } else {
         if (!displayName.trim()) {
           Alert.alert('Error', 'Please enter a display name');
           return;
         }
-        await registerUser(email, password, displayName);
+        // Create a new user
+        setUser({
+          id: '1',
+          email,
+          displayName,
+        });
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', error.message || 'An error occurred');
     }
   };
 
