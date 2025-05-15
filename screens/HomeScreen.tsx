@@ -22,10 +22,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     });
   }, [navigation]);
 
-  const navigateToPhilosopherHub = () => {
-    navigation.navigate('PhilosopherHub');
-  };
-
   const navigateToPersonalHub = () => {
     navigation.navigate('PersonalPhilosophyHub');
   };
@@ -38,16 +34,9 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate('Dialogue')}
+          onPress={() => navigation.navigate('Dialogue' as never)}
         >
           <Text style={styles.buttonText}>Start Chat</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={navigateToPhilosopherHub}
-        >
-          <Text style={styles.buttonText}>Philosopher Hub</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

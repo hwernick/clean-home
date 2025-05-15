@@ -18,7 +18,6 @@ import PrivacyScreen from './screens/settings/PrivacyScreen';
 import HelpSupportScreen from './screens/settings/HelpSupportScreen';
 import DataUsageScreen from './screens/settings/DataUsageScreen';
 import NotificationSettingsScreen from './screens/settings/NotificationSettingsScreen';
-import PhilosopherHub from './screens/PhilosopherHub';
 
 // Define the type for your navigation parameters
 export type RootStackParamList = {
@@ -29,14 +28,12 @@ export type RootStackParamList = {
     conversationId: string;
     messages: Array<{ role: string; content: string }>;
   };
-  PersonalPhilosophyHub: undefined;
   Login: undefined;
   Register: undefined;
   Privacy: undefined;
   HelpSupport: undefined;
   DataUsage: undefined;
   NotificationSettings: undefined;
-  PhilosopherHub: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -109,13 +106,6 @@ function Navigation() {
             component={PersonalPhilosophyHub}
             options={{
               title: 'Personal Philosophy Hub',
-            }}
-          />
-          <Stack.Screen
-            name="PhilosopherHub"
-            component={PhilosopherHub}
-            options={{
-              title: 'Philosopher Hub',
             }}
           />
           <Stack.Screen

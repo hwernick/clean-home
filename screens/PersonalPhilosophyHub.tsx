@@ -18,7 +18,6 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhilosophicalAnalysisService } from '../services/PhilosophicalAnalysisService';
-import { PhilosopherChatService } from '../services/PhilosopherChatService';
 
 type PersonalPhilosophyHubProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PersonalPhilosophyHub'>;
@@ -114,37 +113,24 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
   const analyzeConversationHistory = async () => {
     setAnalyzing(true);
     try {
-      // Get all philosopher chats from StorageService
-      const chats = await PhilosopherChatService.loadChats();
-      if (!chats || chats.length === 0) {
-        Alert.alert('No Data', 'No conversation history found to analyze.');
+      if (!works || works.length === 0) {
+        Alert.alert('No Data', 'No philosophical works found to analyze.');
         setAnalyzing(false);
         return;
       }
-
-      // Extract all user messages from all chats
-      const userMessages = chats.flatMap(chat => 
-        chat.messages.filter(msg => msg.role === 'user').map(msg => msg.content)
-      );
-
-      if (userMessages.length === 0) {
-        Alert.alert('No Data', 'No user messages found in conversation history.');
-        setAnalyzing(false);
-        return;
-      }
-
-      // Prepare the conversation history for analysis
-      const conversationHistory = userMessages.join('\n\n');
-
-      // Use the PhilosophicalAnalysisService to analyze the conversation history
-      const analysisResult = await PhilosophicalAnalysisService.analyzePhilosophicalViewpoint(conversationHistory);
+  
+      // Extract all content from works
+      const worksContent = works.map(work => work.content).join('\n\n');
+  
+      // Use the PhilosophicalAnalysisService to analyze the works
+      const analysisResult = await PhilosophicalAnalysisService.analyzePhilosophicalViewpoint(worksContent);
       setAnalysis(analysisResult);
       setShowAnalysisModal(true);
       
       saveData();
     } catch (error) {
-      console.error('Error analyzing conversation history:', error);
-      Alert.alert('Error', 'Failed to analyze your philosophical viewpoint. Please try again.');
+      console.error('Error analyzing works:', error);
+      Alert.alert('Error', 'Failed to analyze your philosophical works. Please try again.');
     } finally {
       setAnalyzing(false);
     }

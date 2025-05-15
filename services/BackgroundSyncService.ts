@@ -1,6 +1,5 @@
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import { StorageService } from './StorageService';
-import { PhilosopherChatService } from './PhilosopherChatService';
 
 interface SyncQueueItem {
   key: string;

@@ -14,13 +14,3 @@ export type Message = {
   role: 'user' | 'assistant';
 };
 
-export type PhilosopherChat = {
-  id: string;
-  philosopherId: string;
-  philosopherName: string;
-  philosopherImage: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-  messages: Message[];
-}; 
