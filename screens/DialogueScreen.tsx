@@ -21,13 +21,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import { sendMessage as sendMessageToAPI } from '../src/services/api';
 import { OPENAI_API_KEY } from '@env';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 type Message = {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 };
 
@@ -50,12 +50,13 @@ type DialogueScreenProps = {
 export default function DialogueScreen({ navigation, route }: DialogueScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Extract conversation cleanup logic into a reusable function
   const handleConversationCleanup = useCallback((conversationId: string, messageCount: number) => {
@@ -152,44 +153,34 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
   };
 
   const updateConversationTitle = async (messages: Message[]) => {
-    if (!currentConversationId || messages.length === 0) return;
+    if (!currentConversationId || messages.length < 2) return;
     
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
+      const titlePrompt: Message[] = [
+        {
+          role: 'system' as const,
+          content: 'Generates concise, relevant titles for conversations. Create a title that is 3-5 words maximum, capturing the main topic or theme of the conversation. The title should be clear and meaningful without being too long. Only respond with the title, no additional text.',
         },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful assistant that generates concise, descriptive titles for conversations. Create a title that is 2-4 words maximum, capturing the main topic or theme of the conversation. The title should be clear and meaningful without being too long.',
-            },
-            {
-              role: 'user',
-              content: `Generate a concise title for this conversation:\n\n${messages.map(msg => `${msg.role}: ${msg.content}`).join('\n\n')}`,
-            },
-          ],
-          max_tokens: 10,
-          temperature: 0.7,
-        }),
-      });
+        {
+          role: 'user' as const,
+          content: `Generate a concise, relevant title (3-5 words) for this conversation based on the first exchange:\n\n${messages.slice(0, 2).map(msg => `${msg.role}: ${msg.content}`).join('\n\n')}`,
+        },
+      ];
 
-      const data = await res.json();
-      const title = data.choices?.[0]?.message?.content?.trim() || 'New Conversation';
+      const title = await sendMessageToAPI(titlePrompt);
+      const cleanTitle = title.trim().replace(/["']/g, '');
       
-      setConversations(prev => {
-        const updated = prev.map(conv => 
-          conv.id === currentConversationId 
-            ? { ...conv, title, messages }
-            : conv
-        );
-        saveConversations(updated);
-        return updated;
-      });
+      if (cleanTitle) {
+        setConversations(prev => {
+          const updated = prev.map(conv => 
+            conv.id === currentConversationId 
+              ? { ...conv, title: cleanTitle, messages }
+              : conv
+          );
+          saveConversations(updated);
+          return updated;
+        });
+      }
     } catch (error) {
       console.error('Error generating title:', error);
       // Fallback to a simple title if the API call fails
@@ -251,12 +242,17 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
           conv.id === currentConversationId ? updatedConversation : conv
         );
         await saveConversations(updatedConversations);
+
+        // Update title if this is the first exchange
+        if (updatedMessages.length === 2) {
+          await updateConversationTitle(updatedMessages);
+        }
       } else {
         // Create new conversation
         const newId = Date.now().toString();
         const newConversation: Conversation = {
           id: newId,
-          title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+          title: 'New Conversation',
           messages: updatedMessages,
           timestamp: Date.now(),
         };
@@ -265,6 +261,9 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
         setCurrentConversationId(newId);
         const updatedConversations = [...conversations, newConversation];
         await saveConversations(updatedConversations);
+
+        // Update title for the new conversation
+        await updateConversationTitle(updatedMessages);
       }
 
     } catch (error) {
@@ -288,73 +287,57 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
     }
   };
 
-  const pickDocument = async () => {
+  const handleDocumentUpload = async () => {
     try {
+      setUploading(true);
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: ['text/plain', 'application/pdf'],
         copyToCacheDirectory: true,
       });
 
-      if (result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        const content = await FileSystem.readAsStringAsync(file.uri);
+      if (result.assets?.[0]) {
+        const fileUri = result.assets[0].uri;
+        const fileName = result.assets[0].name;
+        const fileType = result.assets[0].mimeType;
         
-        if (content) {
-          const userMessage: Message = {
-            role: 'user',
-            content: `[Document Upload: ${file.name}]\n\n${content}`
-          };
-          setMessages(prev => [...prev, userMessage]);
-          setInput('');
-          setLoading(true);
-          
+        let fileContent: string;
+        
+        if (fileType === 'application/pdf') {
+          // For PDFs, we'll just notify that PDF content can't be read directly
+          fileContent = `[PDF file content cannot be read directly. Please convert to text format if you want to analyze the content.]`;
+        } else {
+          // For text files, read the content
           try {
-            const reply = await sendMessageToAPI([...messages, userMessage]);
-            if (reply) {
-              const assistantMessage: Message = { role: 'assistant', content: reply.trim() };
-              const updatedMessages = [...messages, userMessage, assistantMessage];
-              setMessages(updatedMessages);
-              
-              // Save the conversation after processing the document
-              if (currentConversationId) {
-                setConversations(prev => {
-                  const updated = prev.map(conv => 
-                    conv.id === currentConversationId 
-                      ? { ...conv, messages: updatedMessages }
-                      : conv
-                  );
-                  saveConversations(updated);
-                  return updated;
-                });
-              } else {
-                // Create a new conversation if none exists
-                createNewConversation();
-                setConversations(prev => {
-                  const updated = prev.map(conv => 
-                    conv.id === currentConversationId 
-                      ? { ...conv, messages: updatedMessages }
-                      : conv
-                  );
-                  saveConversations(updated);
-                  return updated;
-                });
-              }
-              
-              // Update the conversation title after processing the document
-              updateConversationTitle(updatedMessages);
-            }
-          } catch (err) {
-            console.error('Error processing document:', err);
-            const errorMessage: Message = { role: 'assistant', content: '⚠️ Error processing document.' };
-            setMessages(prev => [...prev, errorMessage]);
+            fileContent = await FileSystem.readAsStringAsync(fileUri);
+          } catch (error) {
+            console.error('Error reading file:', error);
+            fileContent = '[Error reading file content]';
           }
-          
-          setLoading(false);
         }
+        
+        // Create a message with the document content
+        const documentMessage: Message = {
+          role: 'user',
+          content: `I've uploaded a document named "${fileName}". Here's its content:\n\n${fileContent}`,
+        };
+
+        // Add the message to the conversation
+        setMessages(prev => [...prev, documentMessage]);
+        
+        // If there's no active conversation, create one
+        if (!currentConversationId) {
+          createNewConversation();
+        }
+
+        // Send the document content to the API
+        await sendMessage(documentMessage.content);
       }
-    } catch (err) {
-      console.error('Error picking document:', err);
-      Alert.alert('Error', 'Failed to pick document. Please try again.');
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      Alert.alert('Error', 'Failed to upload document. Please try again.');
+    } finally {
+      setUploading(false);
+      setShowContextMenu(false);
     }
   };
 
@@ -512,16 +495,6 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
               style={styles.contextMenuItem}
               onPress={() => {
                 setShowContextMenu(false);
-                pickDocument();
-              }}
-            >
-              <Icon name="document-attach" size={20} color="#888" />
-              <Text style={styles.contextMenuText}>Upload Document</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.contextMenuItem}
-              onPress={() => {
-                setShowContextMenu(false);
                 if (currentConversationId) {
                   navigation.navigate('Notes', {
                     conversationId: currentConversationId,
@@ -538,6 +511,16 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
             >
               <Icon name="book-outline" size={20} color="#888" />
               <Text style={styles.contextMenuText}>Generate Notes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.contextMenuItem}
+              onPress={handleDocumentUpload}
+              disabled={uploading}
+            >
+              <Icon name="document-outline" size={20} color="#888" />
+              <Text style={styles.contextMenuText}>
+                {uploading ? 'Uploading...' : 'Upload Document'}
+              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -691,7 +674,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     marginBottom: 4,
-
   },
   newConversationButton: {
     flexDirection: 'row',
@@ -708,17 +690,6 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 8,
     marginLeft: 8,
-  },
-  uploadButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#2a2a2a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-    marginRight: 8,
   },
   contextMenuOverlay: {
     flex: 1,

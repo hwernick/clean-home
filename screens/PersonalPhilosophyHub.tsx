@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhilosophicalAnalysisService } from '../services/PhilosophicalAnalysisService';
+import { LoggingService } from '../services/LoggingService';
 
 type PersonalPhilosophyHubProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PersonalPhilosophyHub'>;
@@ -55,6 +56,42 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
     tags: [],
   });
 
+  // Memoize expensive computations
+  const worksContent = useMemo(() => 
+    works.map(work => work.content).join('\n\n'),
+    [works]
+  );
+
+  // Memoize callbacks
+  const handleUploadDocument = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/plain', 'application/pdf'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.assets?.[0]) {
+        const newWork: PhilosophicalWork = {
+          id: Date.now().toString(),
+          title: result.assets[0].name,
+          content: 'Document content will be processed here...',
+          date: new Date().toISOString(),
+          tags: [],
+          type: 'essay',
+        };
+
+        setWorks(prev => [newWork, ...prev]);
+        await saveData();
+      }
+    } catch (error) {
+      LoggingService.error('Error uploading document:', error);
+      Alert.alert('Error', 'Failed to upload document. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -67,7 +104,7 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
         setWorks(JSON.parse(storedWorks));
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      LoggingService.error('Error loading data:', error);
     }
   };
 
@@ -75,38 +112,7 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
     try {
       await AsyncStorage.setItem('philosophical_works', JSON.stringify(works));
     } catch (error) {
-      console.error('Error saving data:', error);
-    }
-  };
-
-  const handleUploadDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/plain', 'application/pdf'],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.assets && result.assets.length > 0) {
-        setLoading(true);
-        // Here you would process the document and extract its content
-        // For now, we'll just create a new work entry
-        const newWork: PhilosophicalWork = {
-          id: Date.now().toString(),
-          title: result.assets[0].name,
-          content: 'Document content will be processed here...',
-          date: new Date().toISOString(),
-          tags: [],
-          type: 'essay',
-        };
-
-        setWorks(prev => [newWork, ...prev]);
-        saveData();
-      }
-    } catch (error) {
-      console.error('Error uploading document:', error);
-      Alert.alert('Error', 'Failed to upload document. Please try again.');
-    } finally {
-      setLoading(false);
+      LoggingService.error('Error saving data:', error);
     }
   };
 
@@ -119,9 +125,6 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
         return;
       }
   
-      // Extract all content from works
-      const worksContent = works.map(work => work.content).join('\n\n');
-  
       // Use the PhilosophicalAnalysisService to analyze the works
       const analysisResult = await PhilosophicalAnalysisService.analyzePhilosophicalViewpoint(worksContent);
       setAnalysis(analysisResult);
@@ -129,7 +132,7 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
       
       saveData();
     } catch (error) {
-      console.error('Error analyzing works:', error);
+      LoggingService.error('Error analyzing works:', error);
       Alert.alert('Error', 'Failed to analyze your philosophical works. Please try again.');
     } finally {
       setAnalyzing(false);
