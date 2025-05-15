@@ -1,49 +1,47 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../App';
-import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
 };
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Profile')}
-          style={{ marginRight: 16 }}
-        >
-          <Ionicons name="person-circle-outline" size={24} color="#fff" />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
+  const { isDarkMode } = useTheme();
+
+  const theme = {
+    background: isDarkMode ? '#1c1c1c' : '#fff',
+    text: isDarkMode ? '#fff' : '#000',
+    subtitle: isDarkMode ? '#888' : '#666',
+    button: '#007AFF',
+    secondaryButton: isDarkMode ? '#2a2a2a' : '#e5e5e5',
+    buttonText: '#fff',
+  };
 
   const navigateToPersonalHub = () => {
-    navigation.navigate('PersonalPhilosophyHub');
+    navigation.navigate('PersonalPhilosophyHub' as never);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to ClassicaI</Text>
-        <Text style={styles.subtitle}>Your AI philosophy tutor</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Welcome to ClassicaI</Text>
+        <Text style={[styles.subtitle, { color: theme.subtitle }]}>Your AI philosophy tutor</Text>
         
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { backgroundColor: theme.button }]}
           onPress={() => navigation.navigate('Dialogue' as never)}
         >
-          <Text style={styles.buttonText}>Start Chat</Text>
+          <Text style={[styles.buttonText, { color: theme.buttonText }]}>Start Chat</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
+          style={[styles.button, styles.secondaryButton, { backgroundColor: theme.secondaryButton }]}
           onPress={navigateToPersonalHub}
         >
-          <Text style={styles.buttonText}>Personal Philosophy Hub</Text>
+          <Text style={[styles.buttonText, { color: theme.text }]}>Personal Philosophy Hub</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -53,7 +51,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1c1c1c',
   },
   content: {
     flex: 1,
@@ -64,16 +61,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
-    color: '#888',
     marginBottom: 32,
   },
   button: {
-    backgroundColor: '#007AFF',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -81,11 +75,8 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  secondaryButton: {
-    backgroundColor: '#2a2a2a',
-  },
+  secondaryButton: {},
   buttonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },

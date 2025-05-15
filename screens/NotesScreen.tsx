@@ -18,6 +18,7 @@ import { RootStackParamList } from '../App';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OPENAI_API_KEY } from '@env';
+import { useTheme } from '../contexts/ThemeContext';
 
 type NotesScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Notes'>;
@@ -38,6 +39,18 @@ export default function NotesScreen({ navigation, route }: NotesScreenProps) {
   const [isEditing, setIsEditing] = useState(false); // Whether the user is editing
   const [tempTitle, setTempTitle] = useState('Notes'); // Temporary title while editing
   const [tempNotes, setTempNotes] = useState(''); // Temporary notes content while editing
+  const { isDarkMode } = useTheme();
+  const theme = {
+    background: isDarkMode ? '#1c1c1c' : '#f7f7f7',
+    card: isDarkMode ? '#232323' : '#fff',
+    text: isDarkMode ? '#fff' : '#111',
+    secondaryText: isDarkMode ? '#888' : '#666',
+    input: isDarkMode ? '#232323' : '#fff',
+    inputText: isDarkMode ? '#fff' : '#111',
+    border: isDarkMode ? '#444' : '#ddd',
+    placeholder: isDarkMode ? '#888' : '#aaa',
+    button: '#007AFF',
+  };
 
   // Set up navigation options (e.g., back button)
   useEffect(() => {
@@ -48,11 +61,11 @@ export default function NotesScreen({ navigation, route }: NotesScreenProps) {
           onPress={() => navigation.goBack()}
           style={{ marginLeft: 8, marginBottom: 16 }}
         >
-          <Icon name="arrow-back" size={24} color="#fff" />
+          <Icon name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation]);
+  }, [navigation, theme.text]);
 
   // Load and generate initial notes on screen mount
   useEffect(() => {
@@ -214,66 +227,87 @@ Leave questions open if the user is still exploring them (e.g., "Still reflectin
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAvoidingView
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.mainContainer}>
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-                <Text style={styles.loadingText}>Generating notes...</Text>
-              </View>
-            ) : (
-              <ScrollView
-                style={styles.notesScrollView}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                contentContainerStyle={styles.notesContentContainer}
-                showsVerticalScrollIndicator={false}
-              >
-                {isEditing ? (
-                  <TextInput
-                    style={styles.notesInput}
-                    value={tempNotes}
-                    onChangeText={setTempNotes}
-                    placeholder="Your notes will appear here..."
-                    placeholderTextColor="#888"
-                    multiline
-                    scrollEnabled={false}
-                    textAlignVertical="top"
-                  />
+          <View style={{ flex: 1, backgroundColor: theme.background }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+              <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                <TextInput
+                  style={[styles.titleInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.input }]}
+                  value={isEditing ? tempTitle : title}
+                  onChangeText={setTempTitle}
+                  editable={isEditing}
+                  placeholder="Title"
+                  placeholderTextColor={theme.placeholder}
+                />
+                <TextInput
+                  style={[styles.notesInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.input }]}
+                  value={isEditing ? tempNotes : notes}
+                  onChangeText={setTempNotes}
+                  editable={isEditing}
+                  multiline
+                  placeholder="Write your notes here..."
+                  placeholderTextColor={theme.placeholder}
+                />
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.loadingText}>Generating notes...</Text>
+                  </View>
                 ) : (
-                  <Text style={styles.notesText}>{notes}</Text>
+                  <ScrollView
+                    style={styles.notesScrollView}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    contentContainerStyle={styles.notesContentContainer}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {isEditing ? (
+                      <TextInput
+                        style={styles.notesInput}
+                        value={tempNotes}
+                        onChangeText={setTempNotes}
+                        placeholder="Your notes will appear here..."
+                        placeholderTextColor="#888"
+                        multiline
+                        scrollEnabled={false}
+                        textAlignVertical="top"
+                      />
+                    ) : (
+                      <Text style={styles.notesText}>{notes}</Text>
+                    )}
+                  </ScrollView>
                 )}
-              </ScrollView>
-            )}
-            
-            {saving && (
-              <View style={styles.savingIndicator}>
-                <Text style={styles.savingText}>Saving...</Text>
+                
+                {saving && (
+                  <View style={styles.savingIndicator}>
+                    <Text style={styles.savingText}>Saving...</Text>
+                  </View>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.floatingEditButton}
+                  onPress={() => {
+                    if (isEditing) {
+                      saveChanges();
+                    } else {
+                      setIsEditing(true);
+                    }
+                  }}
+                >
+                  <Icon 
+                    name={isEditing ? "checkmark" : "pencil"} 
+                    size={20} 
+                    color="#888" 
+                  />
+                </TouchableOpacity>
               </View>
-            )}
-            
-            <TouchableOpacity 
-              style={styles.floatingEditButton}
-              onPress={() => {
-                if (isEditing) {
-                  saveChanges();
-                } else {
-                  setIsEditing(true);
-                }
-              }}
-            >
-              <Icon 
-                name={isEditing ? "checkmark" : "pencil"} 
-                size={20} 
-                color="#888" 
-              />
-            </TouchableOpacity>
+            </ScrollView>
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -284,7 +318,6 @@ Leave questions open if the user is still exploring them (e.g., "Still reflectin
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1c1c1c',
   },
   keyboardAvoid: {
     flex: 1,
@@ -345,5 +378,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#333',
+  },
+  card: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+  },
+  titleInput: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
   },
 });

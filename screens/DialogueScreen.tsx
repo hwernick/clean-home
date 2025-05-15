@@ -25,6 +25,7 @@ import { sendMessage as sendMessageToAPI } from '../src/services/api';
 import { OPENAI_API_KEY } from '@env';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { useTheme } from '../contexts/ThemeContext';
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
@@ -57,6 +58,20 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
   const scrollRef = useRef<ScrollView>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { isDarkMode } = useTheme();
+  const theme = {
+    background: isDarkMode ? '#1c1c1c' : '#f7f7f7',
+    card: isDarkMode ? '#232323' : '#fff',
+    text: isDarkMode ? '#fff' : '#111',
+    secondaryText: isDarkMode ? '#888' : '#666',
+    input: isDarkMode ? '#232323' : '#fff',
+    inputText: isDarkMode ? '#fff' : '#111',
+    border: isDarkMode ? '#444' : '#ddd',
+    placeholder: isDarkMode ? '#888' : '#aaa',
+    button: '#007AFF',
+    userBubble: isDarkMode ? '#2a2a2a' : '#e5e5e5',
+    assistantBubble: isDarkMode ? '#333' : '#fff',
+  };
 
   // Extract conversation cleanup logic into a reusable function
   const handleConversationCleanup = useCallback((conversationId: string, messageCount: number) => {
@@ -76,7 +91,7 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
           }}
           style={{ marginLeft: 8, marginBottom: 16 }}
         >
-          <Icon name="arrow-back" size={24} color="#fff" />
+          <Icon name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
       ),
       headerRight: () => (
@@ -84,11 +99,11 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
           onPress={() => setShowHistory(true)}
           style={{ marginRight: 8, marginBottom: 16 }}
         >
-          <Icon name="menu" size={24} color="#fff" />
+          <Icon name="menu" size={24} color={theme.text} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, currentConversationId, messages, handleConversationCleanup]);
+  }, [navigation, currentConversationId, messages, handleConversationCleanup, theme.text]);
 
   useEffect(() => {
     loadConversations();
@@ -96,10 +111,11 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
 
   useEffect(() => {
     return () => {
-      // Delete conversation if it's empty when leaving the screen
-      handleConversationCleanup(currentConversationId!, messages.length);
+      if (currentConversationId && messages.length === 0) {
+        deleteConversation(currentConversationId);
+      }
     };
-  }, [currentConversationId, messages, handleConversationCleanup]);
+  }, [currentConversationId, messages]);
 
   // Handle initial message if provided
   useEffect(() => {
@@ -243,8 +259,8 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
         );
         await saveConversations(updatedConversations);
 
-        // Update title if this is the first exchange
-        if (updatedMessages.length === 2) {
+        // Only update the title after the first exchange and if it's still the default
+        if (updatedMessages.length === 2 && (!updatedConversation.title || updatedConversation.title === 'New Conversation')) {
           await updateConversationTitle(updatedMessages);
         }
       } else {
@@ -262,8 +278,10 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
         const updatedConversations = [...conversations, newConversation];
         await saveConversations(updatedConversations);
 
-        // Update title for the new conversation
-        await updateConversationTitle(updatedMessages);
+        // Only update the title after the first exchange
+        if (updatedMessages.length === 2) {
+          await updateConversationTitle(updatedMessages);
+        }
       }
 
     } catch (error) {
@@ -299,12 +317,26 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
         const fileUri = result.assets[0].uri;
         const fileName = result.assets[0].name;
         const fileType = result.assets[0].mimeType;
-        
         let fileContent: string;
-        
+
         if (fileType === 'application/pdf') {
-          // For PDFs, we'll just notify that PDF content can't be read directly
-          fileContent = `[PDF file content cannot be read directly. Please convert to text format if you want to analyze the content.]`;
+          // Upload PDF to backend for extraction
+          const formData = new FormData();
+          formData.append('file', {
+            uri: fileUri,
+            name: fileName,
+            type: 'application/pdf',
+          });
+
+          const response = await fetch('http://10.42.213.168:3001/extract-pdf', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          const data = await response.json();
+          fileContent = data.text || '[Could not extract text from PDF]';
         } else {
           // For text files, read the content
           try {
@@ -314,7 +346,7 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
             fileContent = '[Error reading file content]';
           }
         }
-        
+
         // Create a message with the document content
         const documentMessage: Message = {
           role: 'user',
@@ -342,21 +374,18 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAvoidingView
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.mainContainer}>
+          <View style={{ flex: 1, backgroundColor: theme.background }}>
             <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
               ref={scrollRef}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
+              style={{ flex: 1, backgroundColor: theme.background }}
+              contentContainerStyle={{ padding: 16 }}
             >
               {messages.map((msg, i) => (
                 <View
@@ -364,34 +393,32 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
                   style={[
                     styles.messageRow,
                     msg.role === 'user' ? styles.userAlign : styles.assistantAlign,
+                    { backgroundColor: msg.role === 'user' ? theme.userBubble : theme.assistantBubble, borderRadius: 14, padding: 12, marginBottom: 10 },
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.messageText,
-                      msg.role === 'user' ? styles.userText : styles.assistantText,
-                    ]}
+                    style={{ color: theme.text, fontSize: 16, lineHeight: 24 }}
                   >
                     {msg.content}
                   </Text>
                 </View>
               ))}
               {loading && (
-                <View style={[styles.messageRow, styles.assistantAlign]}>
-                  <ActivityIndicator size="small" color="#ccc" />
+                <View style={[styles.messageRow, styles.assistantAlign, { backgroundColor: theme.assistantBubble, borderRadius: 14, padding: 12, marginBottom: 10 }] }>
+                  <ActivityIndicator size="small" color={theme.secondaryText} />
                 </View>
               )}
             </ScrollView>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
               <View style={styles.inputRow}>
-                <View style={styles.inputContainer}>
+                <View style={[styles.inputContainer, { backgroundColor: theme.input, borderColor: theme.border }] }>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: theme.inputText }]}
+                    placeholder="What's on your mind..."
+                    placeholderTextColor={theme.placeholder}
                     value={input}
                     onChangeText={setInput}
-                    placeholder="What's on your mind..."
-                    placeholderTextColor="#888"
                     multiline
                     onSubmitEditing={() => sendMessage(input)}
                     returnKeyType="send"
@@ -401,14 +428,14 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
                     onPress={() => sendMessage(input)}
                     disabled={loading || !input.trim()}
                   >
-                    <Icon name="arrow-up" size={20} color={input.trim() && !loading ? "#fff" : "#888"} />
+                    <Icon name="arrow-up" size={20} color={input.trim() && !loading ? "#fff" : theme.secondaryText} />
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity 
-                  style={styles.penButton}
+                  style={[styles.penButton, { backgroundColor: theme.input, borderColor: theme.border }]}
                   onPress={() => setShowContextMenu(true)}
                 >
-                  <Icon name="ellipsis-horizontal" size={20} color="#888" />
+                  <Icon name="ellipsis-horizontal" size={20} color={theme.secondaryText} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -532,7 +559,6 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1c1c1c',
   },
   header: {
     flexDirection: 'row',
@@ -716,5 +742,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     marginLeft: 12,
+  },
+  inputBar: {
+    padding: 12,
+    borderTopWidth: 1,
+    borderColor: '#333',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
   },
 });

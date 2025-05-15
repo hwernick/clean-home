@@ -19,6 +19,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhilosophicalAnalysisService } from '../services/PhilosophicalAnalysisService';
 import { LoggingService } from '../services/LoggingService';
+import { useTheme } from '../contexts/ThemeContext';
 
 type PersonalPhilosophyHubProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PersonalPhilosophyHub'>;
@@ -55,6 +56,18 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
     type: 'essay',
     tags: [],
   });
+
+  const { isDarkMode } = useTheme();
+  const theme = {
+    background: isDarkMode ? '#1c1c1c' : '#fff',
+    text: isDarkMode ? '#fff' : '#000',
+    subtitle: isDarkMode ? '#888' : '#666',
+    card: isDarkMode ? '#232323' : '#f8f8f8',
+    border: isDarkMode ? '#444' : '#ddd',
+    button: '#007AFF',
+    secondaryButton: isDarkMode ? '#2a2a2a' : '#e5e5e5',
+    buttonText: '#fff',
+  };
 
   // Memoize expensive computations
   const worksContent = useMemo(() => 
@@ -139,15 +152,15 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
     }
   };
 
-  const renderWorksTab = () => (
-    <View style={styles.tabContent}>
+  const renderWorksTab = (theme: any) => (
+    <View style={[styles.tabContent, { backgroundColor: theme.background }]}>
       <TouchableOpacity
-        style={styles.uploadButton}
+        style={[styles.uploadButton, { backgroundColor: theme.button }]}
         onPress={handleUploadDocument}
         disabled={loading}
       >
-        <Icon name="cloud-upload" size={24} color="#fff" />
-        <Text style={styles.uploadButtonText}>
+        <Icon name="cloud-upload" size={24} color={theme.buttonText} />
+        <Text style={[styles.uploadButtonText, { color: theme.buttonText }]}>
           {loading ? 'Uploading...' : 'Upload Document'}
         </Text>
       </TouchableOpacity>
@@ -161,32 +174,32 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
               // Navigate to work detail view
             }}
           >
-            <Text style={styles.workTitle}>{work.title}</Text>
-            <Text style={styles.workDate}>{new Date(work.date).toLocaleDateString()}</Text>
-            <Text style={styles.workType}>{work.type}</Text>
+            <Text style={[styles.workTitle, { color: theme.text }]}>{work.title}</Text>
+            <Text style={[styles.workDate, { color: theme.subtitle }]}>{new Date(work.date).toLocaleDateString()}</Text>
+            <Text style={[styles.workType, { color: theme.text }]}>{work.type}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
     </View>
   );
 
-  const renderAnalysisTab = () => (
-    <View style={styles.tabContent}>
+  const renderAnalysisTab = (theme: any) => (
+    <View style={[styles.tabContent, { backgroundColor: theme.background }]}>
       <TouchableOpacity
-        style={styles.analyzeButton}
+        style={[styles.analyzeButton, { backgroundColor: theme.button }]}
         onPress={analyzeConversationHistory}
         disabled={analyzing}
       >
-        <Icon name="analytics" size={24} color="#fff" />
-        <Text style={styles.analyzeButtonText}>
+        <Icon name="analytics" size={24} color={theme.buttonText} />
+        <Text style={[styles.analyzeButtonText, { color: theme.buttonText }]}>
           {analyzing ? 'Analyzing...' : 'Analyze Conversation History'}
         </Text>
       </TouchableOpacity>
 
       {analysis && (
-        <View style={styles.analysisContainer}>
-          <Text style={styles.analysisTitle}>Your Philosophical Analysis</Text>
-          <Text style={styles.analysisText}>{analysis.summary}</Text>
+        <View style={[styles.analysisContainer, { backgroundColor: theme.card }]}>
+          <Text style={[styles.analysisTitle, { color: theme.text }]}>Your Philosophical Analysis</Text>
+          <Text style={[styles.analysisText, { color: theme.text }]}>{analysis.summary}</Text>
         </View>
       )}
     </View>
@@ -204,18 +217,18 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
           <Text style={styles.modalTitle}>Analysis Results</Text>
           {analysis && (
             <>
-              <Text style={styles.modalText}>School: {analysis.school}</Text>
-              <Text style={styles.modalText}>Key Themes: {analysis.keyThemes.join(', ')}</Text>
-              <Text style={styles.modalText}>Strengths: {analysis.strengths.join(', ')}</Text>
-              <Text style={styles.modalText}>Areas for Growth: {analysis.areasForGrowth.join(', ')}</Text>
-              <Text style={styles.modalText}>Summary: {analysis.summary}</Text>
+              <Text style={[styles.modalText, { color: theme.text }]}>School: {analysis.school}</Text>
+              <Text style={[styles.modalText, { color: theme.text }]}>Key Themes: {analysis.keyThemes.join(', ')}</Text>
+              <Text style={[styles.modalText, { color: theme.text }]}>Strengths: {analysis.strengths.join(', ')}</Text>
+              <Text style={[styles.modalText, { color: theme.text }]}>Areas for Growth: {analysis.areasForGrowth.join(', ')}</Text>
+              <Text style={[styles.modalText, { color: theme.text }]}>Summary: {analysis.summary}</Text>
             </>
           )}
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setShowAnalysisModal(false)}
           >
-            <Text style={styles.closeButtonText}>Close</Text>
+            <Text style={[styles.closeButtonText, { color: theme.text }]}>Close</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -223,31 +236,33 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Personal Philosophy Hub</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Personal Philosophy Hub</Text>
       </View>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'works' && styles.selectedTab]}
+          style={[styles.tab, { backgroundColor: selectedTab === 'works' ? theme.button : theme.background }]}
           onPress={() => setSelectedTab('works')}
         >
-          <Text style={[styles.tabText, selectedTab === 'works' && styles.selectedTabText]}>
+          <Text style={[styles.tabText, { color: selectedTab === 'works' ? theme.buttonText : theme.subtitle, fontWeight: selectedTab === 'works' ? 'bold' : 'normal' }]}>
             Works
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'analysis' && styles.selectedTab]}
+          style={[styles.tab, { backgroundColor: selectedTab === 'analysis' ? theme.button : theme.background }]}
           onPress={() => setSelectedTab('analysis')}
         >
-          <Text style={[styles.tabText, selectedTab === 'analysis' && styles.selectedTabText]}>
+          <Text style={[styles.tabText, { color: selectedTab === 'analysis' ? theme.buttonText : theme.subtitle, fontWeight: selectedTab === 'analysis' ? 'bold' : 'normal' }]}>
             Analysis
           </Text>
         </TouchableOpacity>
       </View>
 
-      {selectedTab === 'works' ? renderWorksTab() : renderAnalysisTab()}
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        {selectedTab === 'works' ? renderWorksTab(theme) : renderAnalysisTab(theme)}
+      </View>
       {renderAnalysisModal()}
     </SafeAreaView>
   );
@@ -256,7 +271,6 @@ export default function PersonalPhilosophyHub({ navigation }: PersonalPhilosophy
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1c1c1c',
   },
   header: {
     padding: 16,

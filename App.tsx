@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BackgroundSyncService } from './services/BackgroundSyncService';
+import { Ionicons } from '@expo/vector-icons';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
 // Import your screens here
 import DialogueScreen from './screens/DialogueScreen';
@@ -34,16 +36,24 @@ export type RootStackParamList = {
   HelpSupport: undefined;
   DataUsage: undefined;
   NotificationSettings: undefined;
+  PersonalPhilosophyHub: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function Navigation() {
   const { user, loading } = useAuth();
+  const { isDarkMode } = useTheme();
+
+  const theme = {
+    background: isDarkMode ? '#1c1c1c' : '#fff',
+    text: isDarkMode ? '#fff' : '#000',
+    card: isDarkMode ? '#2a2a2a' : '#f8f8f8',
+  };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1c1c1c' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
@@ -54,12 +64,15 @@ function Navigation() {
       initialRouteName={user ? "Home" : "Login"}
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1c1c1c',
+          backgroundColor: theme.background,
         },
-        headerTintColor: '#fff',
+        headerTintColor: theme.text,
         headerTitleStyle: {
           fontSize: 24,
           fontWeight: 'bold',
+        },
+        contentStyle: {
+          backgroundColor: theme.background,
         },
       }}
     >
@@ -69,6 +82,9 @@ function Navigation() {
           component={LoginScreen}
           options={{
             headerShown: false,
+            contentStyle: {
+              backgroundColor: theme.background,
+            },
           }}
         />
       ) : (
@@ -76,15 +92,29 @@ function Navigation() {
           <Stack.Screen
             name="Home"
             component={HomeScreen}
-            options={{
+            options={({ navigation }) => ({
               title: 'Classical',
-            }}
+              headerRight: () => (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Profile')}
+                  style={{ marginRight: 16, padding: 4 }}
+                >
+                  <Ionicons name="person-circle" size={28} color={theme.text} />
+                </TouchableOpacity>
+              ),
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
+            })}
           />
           <Stack.Screen
             name="Dialogue"
             component={DialogueScreen}
             options={{
               title: 'Socratic Dialogue',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -92,6 +122,9 @@ function Navigation() {
             component={ProfileScreen}
             options={{
               title: 'Profile',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -99,6 +132,9 @@ function Navigation() {
             component={NotesScreen}
             options={{
               title: 'Notes',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -106,6 +142,9 @@ function Navigation() {
             component={PersonalPhilosophyHub}
             options={{
               title: 'Personal Philosophy Hub',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -113,6 +152,9 @@ function Navigation() {
             component={PrivacyScreen}
             options={{
               title: 'Privacy',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -120,6 +162,9 @@ function Navigation() {
             component={HelpSupportScreen}
             options={{
               title: 'Help & Support',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -127,6 +172,9 @@ function Navigation() {
             component={DataUsageScreen}
             options={{
               title: 'Data Usage',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
           <Stack.Screen
@@ -134,6 +182,9 @@ function Navigation() {
             component={NotificationSettingsScreen}
             options={{
               title: 'Notification Settings',
+              contentStyle: {
+                backgroundColor: theme.background,
+              },
             }}
           />
         </>
@@ -143,6 +194,31 @@ function Navigation() {
 }
 
 export default function App() {
+  const { isDarkMode } = useTheme();
+  const theme = {
+    background: isDarkMode ? '#1c1c1c' : '#fff',
+  };
+
+  const navigationTheme = isDarkMode ? {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      background: theme.background,
+      card: theme.background,
+      text: '#fff',
+      border: '#444',
+    },
+  } : {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      background: theme.background,
+      card: theme.background,
+      text: '#000',
+      border: '#ddd',
+    },
+  };
+
   useEffect(() => {
     // Start background sync service
     BackgroundSyncService.start();
@@ -154,13 +230,15 @@ export default function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.background }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <NavigationContainer>
-            <Navigation />
-          </NavigationContainer>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <NavigationContainer theme={navigationTheme}>
+              <Navigation />
+            </NavigationContainer>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

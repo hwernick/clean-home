@@ -15,16 +15,20 @@
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.1.6",
     "@react-navigation/native-stack": "^7.3.10",
+    "cors": "^2.8.5",
     "expo": "53.0.9",
     "expo-document-picker": "~13.1.5",
     "expo-file-system": "~18.1.10",
     "expo-notifications": "~0.31.2",
     "expo-status-bar": "~2.2.3",
     "expo-updates": "~0.28.13",
+    "express": "^5.1.0",
     "lz-string": "^1.5.0",
     "metro": "^0.82.3",
     "metro-config": "^0.82.3",
     "metro-resolver": "^0.82.3",
+    "multer": "^1.4.5-lts.2",
+    "pdf-parse": "^1.1.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
@@ -43,6 +47,7 @@
     "@types/react": "~19.0.10",
     "@types/react-native-vector-icons": "^6.4.18",
     "babel-preset-expo": "~13.0.0",
+    "nodemon": "^3.1.10",
     "typescript": "^5.8.3"
   },
   "private": true,
@@ -52,5 +57,17 @@
         "listUnknownPackages": false
       }
     }
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hwernick/clean-home.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hwernick/clean-home/issues"
+  },
+  "homepage": "https://github.com/hwernick/clean-home#readme",
+  "description": ""
 }
