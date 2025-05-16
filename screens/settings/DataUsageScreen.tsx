@@ -1,8 +1,31 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DataUsageScreen() {
+  const handleDeleteData = async () => {
+    Alert.alert(
+      'Delete All Data',
+      'Are you sure you want to permanently delete all your data? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.clear();
+              Alert.alert('Success', 'All your data has been deleted.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete your data.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
@@ -49,6 +72,10 @@ export default function DataUsageScreen() {
             </View>
           </View>
         </View>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteData}>
+          <Icon name="trash-outline" size={22} color="#fff" style={{ marginRight: 8 }} />
+          <Text style={styles.deleteButtonText}>Delete My Data</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -94,5 +121,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ccc',
     lineHeight: 24,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 32,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 

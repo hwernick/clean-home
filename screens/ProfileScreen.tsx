@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert, TextInpu
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ProfileScreenProps = {
   navigation: any;
@@ -70,6 +71,28 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     );
   };
 
+  const handleDeleteData = async () => {
+    Alert.alert(
+      'Delete All Data',
+      'Are you sure you want to permanently delete all your data? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.clear();
+              Alert.alert('Success', 'All your data has been deleted.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete your data.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const theme = {
     background: isDarkMode ? '#1c1c1c' : '#fff',
     card: isDarkMode ? '#2a2a2a' : '#f8f8f8',
@@ -81,7 +104,10 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]}>
+      <ScrollView
+        style={[styles.scrollView, { backgroundColor: theme.background }]}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         <View style={[styles.content, { backgroundColor: theme.background }]}>
           {/* Profile Section */}
           <View style={[styles.section, { backgroundColor: theme.card }]}>
@@ -159,13 +185,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             <Text style={[styles.versionText, { color: theme.secondaryText }]}>Version 1.0.0</Text>
             <Text style={[styles.copyrightText, { color: theme.secondaryText }]}>© 2024 Your App Name. All rights reserved.</Text>
           </View>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color={theme.text} style={styles.logoutIcon} />
-            <Text style={styles.logoutButtonText}>Log Out</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
+      {/* Fixed Log Out button at the bottom */}
+      <TouchableOpacity style={styles.fixedDeleteButton} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={24} color="#fff" style={styles.logoutIcon} />
+        <Text style={styles.logoutButtonText}>Log Out</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -269,5 +295,18 @@ const styles = StyleSheet.create({
   },
   copyrightText: {
     fontSize: 14,
+  },
+  fixedDeleteButton: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 32,
+    backgroundColor: '#FF3B30',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 }); 

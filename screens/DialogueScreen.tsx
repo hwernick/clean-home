@@ -23,8 +23,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { sendMessage as sendMessageToAPI } from '../src/services/api';
 import { OPENAI_API_KEY } from '@env';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../contexts/ThemeContext';
 
 type Message = {
@@ -57,7 +55,6 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const { isDarkMode } = useTheme();
   const theme = {
     background: isDarkMode ? '#1c1c1c' : '#f7f7f7',
@@ -305,74 +302,6 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
     }
   };
 
-  const handleDocumentUpload = async () => {
-    try {
-      setUploading(true);
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/plain', 'application/pdf'],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.assets?.[0]) {
-        const fileUri = result.assets[0].uri;
-        const fileName = result.assets[0].name;
-        const fileType = result.assets[0].mimeType;
-        let fileContent: string;
-
-        if (fileType === 'application/pdf') {
-          // Upload PDF to backend for extraction
-          const formData = new FormData();
-          formData.append('file', {
-            uri: fileUri,
-            name: fileName,
-            type: 'application/pdf',
-          });
-
-          const response = await fetch('http://10.42.213.168:3001/extract-pdf', {
-            method: 'POST',
-            body: formData,
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-          const data = await response.json();
-          fileContent = data.text || '[Could not extract text from PDF]';
-        } else {
-          // For text files, read the content
-          try {
-            fileContent = await FileSystem.readAsStringAsync(fileUri);
-          } catch (error) {
-            console.error('Error reading file:', error);
-            fileContent = '[Error reading file content]';
-          }
-        }
-
-        // Create a message with the document content
-        const documentMessage: Message = {
-          role: 'user',
-          content: `I've uploaded a document named "${fileName}". Here's its content:\n\n${fileContent}`,
-        };
-
-        // Add the message to the conversation
-        setMessages(prev => [...prev, documentMessage]);
-        
-        // If there's no active conversation, create one
-        if (!currentConversationId) {
-          createNewConversation();
-        }
-
-        // Send the document content to the API
-        await sendMessage(documentMessage.content);
-      }
-    } catch (error) {
-      console.error('Error uploading document:', error);
-      Alert.alert('Error', 'Failed to upload document. Please try again.');
-    } finally {
-      setUploading(false);
-      setShowContextMenu(false);
-    }
-  };
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <KeyboardAvoidingView
@@ -424,6 +353,25 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
                     returnKeyType="send"
                   />
                   <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: theme.input, borderColor: theme.border }]}
+                    onPress={() => {
+                      if (currentConversationId) {
+                        navigation.navigate('Notes', {
+                          conversationId: currentConversationId,
+                          messages: messages,
+                        });
+                      } else {
+                        createNewConversation();
+                        navigation.navigate('Notes', {
+                          conversationId: currentConversationId || Date.now().toString(),
+                          messages: messages,
+                        });
+                      }
+                    }}
+                  >
+                    <Icon name="book-outline" size={20} color={theme.secondaryText} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
                     style={[styles.sendButton, (!input.trim() || loading) && styles.sendButtonDisabled]} 
                     onPress={() => sendMessage(input)}
                     disabled={loading || !input.trim()}
@@ -431,12 +379,6 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
                     <Icon name="arrow-up" size={20} color={input.trim() && !loading ? "#fff" : theme.secondaryText} />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity 
-                  style={[styles.penButton, { backgroundColor: theme.input, borderColor: theme.border }]}
-                  onPress={() => setShowContextMenu(true)}
-                >
-                  <Icon name="ellipsis-horizontal" size={20} color={theme.secondaryText} />
-                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -538,16 +480,6 @@ export default function DialogueScreen({ navigation, route }: DialogueScreenProp
             >
               <Icon name="book-outline" size={20} color="#888" />
               <Text style={styles.contextMenuText}>Generate Notes</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.contextMenuItem}
-              onPress={handleDocumentUpload}
-              disabled={uploading}
-            >
-              <Icon name="document-outline" size={20} color="#888" />
-              <Text style={styles.contextMenuText}>
-                {uploading ? 'Uploading...' : 'Upload Document'}
-              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -748,5 +680,21 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: '#333',
     paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+  },
+  actionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  button: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
